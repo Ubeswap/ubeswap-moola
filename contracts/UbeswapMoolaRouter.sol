@@ -5,6 +5,9 @@ pragma solidity ^0.8.3;
 import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import "./MoolaProxy.sol";
+import "./interfaces/IUbeswapMoolaRouter.sol";
+
 import "./interfaces/IAToken.sol";
 import "./interfaces/ILendingPool.sol";
 import "./interfaces/ILendingPoolCore.sol";
@@ -13,97 +16,95 @@ import "./interfaces/IUbeswapRouter.sol";
 /**
  * Router for allowing conversion to/from Moola before swapping.
  */
-contract UbeswapMoolaRouter is ReentrancyGuard {
+contract UbeswapMoolaRouter is MoolaProxy, IUbeswapMoolaRouter {
     using SafeERC20 for IERC20;
-
-    /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
-    uint16 public constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
 
     /// @notice Ubeswap router
     IUbeswapRouter public router;
-
-    /// @notice Moola lending pool
-    ILendingPool public pool;
-
-    /// @notice Moola lending core
-    ILendingPoolCore public core;
 
     constructor(
         address router_,
         address pool_,
         address core_
-    ) {
+    ) MoolaProxy(pool_, core_) {
         router = IUbeswapRouter(router_);
-        pool = ILendingPool(pool_);
-        core = ILendingPoolCore(core_);
     }
 
-    /**
-     * Converts tokens to/from their Moola representation.
-     * @param _reserve The token to deposit or withdraw.
-     * @param _amount The total amount of tokens to deposit or withdraw.
-     * @param _deposit If true, deposit the aToken. Otherwise, withdraw.
-     */
-    function _convert(
-        address _reserve,
-        uint256 _amount,
-        bool _deposit
-    ) internal nonReentrant {
-        if (_deposit) {
-            IERC20(_reserve).safeApprove(address(core), _amount);
-            pool.deposit(_reserve, _amount, UBESWAP_MOOLA_ROUTER_REFERRAL_CODE);
-        } else {
-            IAToken(getReserveATokenAddress(_reserve)).redeem(_amount);
-        }
-    }
-
-    /**
-     * Gets the address of the aToken assocated with the reserve.
-     */
-    function getReserveATokenAddress(address _reserve)
-        public
-        view
-        returns (address)
-    {
-        address aToken = core.getReserveATokenAddress(_reserve);
+    // Checks if the path is valid with the given reserves.
+    // Also converts the input amount from the user, if specified.
+    function _initSwap(
+        address[] calldata _path,
+        address[2] calldata _reserves,
+        bool[2] calldata _directions,
+        uint256 _inAmount
+    ) internal returns (address _outToken) {
         require(
-            aToken != address(0),
-            "UbeswapMoolaRouter::getReserveATokenAddress: unknown reserve"
+            _inAmount > 0,
+            "UbeswapMoolaRouter::_initSwap: _inAmount must be > 0"
         );
-        return aToken;
-    }
 
-    function _convertTokensIn(
-        address _reserveIn,
-        uint256 _amountIn,
-        bool _depositIn
-    ) internal {
-        if (_reserveIn != address(0)) {
+        if (_reserves[1] == address(0)) {
+            _outToken = _directions[1]
+                ? _reserves[1]
+                : getReserveATokenAddress(_reserves[1]);
+            require(
+                (
+                    _directions[1]
+                        ? getReserveATokenAddress(_reserves[1])
+                        : _reserves[1]
+                ) == _path[_path.length - 1],
+                "UbeswapMoolaRouter::_initSwap: end mismatch"
+            );
+            require(
+                _outToken != address(0),
+                "UbeswapMoolaRouter::_initSwap: out token not found"
+            );
+        }
+
+        if (_reserves[0] != address(0)) {
             address inToken =
-                _depositIn ? _reserveIn : getReserveATokenAddress(_reserveIn);
+                _directions[0]
+                    ? _reserves[0]
+                    : getReserveATokenAddress(_reserves[0]);
+            require(
+                (
+                    _directions[0]
+                        ? getReserveATokenAddress(_reserves[0])
+                        : _reserves[0]
+                ) == _path[0],
+                "UbeswapMoolaRouter::_initSwap: start mismatch"
+            );
+            require(
+                inToken != address(0),
+                "UbeswapMoolaRouter::_initSwap: in token not found"
+            );
+
+            // If inToken is found, pull it and convert the token.
             IERC20(inToken).safeTransferFrom(
                 msg.sender,
                 address(this),
-                _amountIn
+                _inAmount
             );
-            IERC20(inToken).safeApprove(address(router), _amountIn);
-            _convert(_reserveIn, _amountIn, _depositIn);
+            IERC20(inToken).safeApprove(address(router), _inAmount);
+            _convert(
+                _reserves[0],
+                _inAmount,
+                _directions[0],
+                Reason.CONVERT_IN
+            );
         }
     }
 
     function _convertTokensOut(
         address _to,
-        address _reserveOut,
-        uint256 _amountOut,
-        bool _depositOut
+        address _outToken,
+        address _reserve,
+        uint256 _amount,
+        bool _withdrawOut
     ) internal {
-        if (_reserveOut != address(0)) {
-            _convert(_reserveOut, _amountOut, _depositOut);
-            address outToken =
-                _depositOut
-                    ? _reserveOut
-                    : getReserveATokenAddress(_reserveOut);
-            IERC20(outToken).safeTransfer(_to, _amountOut);
+        if (_outToken != address(0)) {
+            _convert(_reserve, _amount, !_withdrawOut, Reason.CONVERT_OUT);
+            IERC20(_outToken).safeTransfer(_to, _amount);
         }
     }
 
@@ -114,13 +115,11 @@ contract UbeswapMoolaRouter is ReentrancyGuard {
         address to,
         uint256 deadline,
         // moola
-        address _reserveIn,
-        bool _depositIn,
-        address _reserveOut,
-        bool _depositOut
-    ) external returns (uint256[] memory amounts) {
-        amounts = router.getAmountsOut(amountIn, path);
-        _convertTokensIn(_reserveIn, amounts[0], _depositIn);
+        address[2] calldata _reserves,
+        bool[2] calldata _directions
+    ) external override returns (uint256[] memory amounts) {
+        uint256 inAmount = router.getAmountsOut(amountIn, path)[0];
+        address outToken = _initSwap(path, _reserves, _directions, inAmount);
 
         amounts = router.swapExactTokensForTokens(
             amountIn,
@@ -132,9 +131,10 @@ contract UbeswapMoolaRouter is ReentrancyGuard {
 
         _convertTokensOut(
             to,
-            _reserveOut,
+            outToken,
+            _reserves[1],
             amounts[amounts.length - 1],
-            _depositOut
+            _directions[1]
         );
     }
 
@@ -145,13 +145,11 @@ contract UbeswapMoolaRouter is ReentrancyGuard {
         address to,
         uint256 deadline,
         // moola
-        address _reserveIn,
-        bool _depositIn,
-        address _reserveOut,
-        bool _depositOut
-    ) external returns (uint256[] memory amounts) {
-        amounts = router.getAmountsIn(amountOut, path);
-        _convertTokensIn(_reserveIn, amounts[0], _depositIn);
+        address[2] calldata _reserves,
+        bool[2] calldata _directions
+    ) external override returns (uint256[] memory amounts) {
+        uint256 inAmount = router.getAmountsIn(amountOut, path)[0];
+        address outToken = _initSwap(path, _reserves, _directions, inAmount);
 
         amounts = router.swapTokensForExactTokens(
             amountOut,
@@ -163,9 +161,10 @@ contract UbeswapMoolaRouter is ReentrancyGuard {
 
         _convertTokensOut(
             to,
-            _reserveOut,
+            outToken,
+            _reserves[1],
             amounts[amounts.length - 1],
-            _depositOut
+            _directions[1]
         );
     }
 
@@ -176,13 +175,13 @@ contract UbeswapMoolaRouter is ReentrancyGuard {
         address to,
         uint256 deadline,
         // moola
-        address _reserveIn,
-        bool _depositIn,
-        address _reserveOut,
-        bool _depositOut
-    ) external {
-        _convertTokensIn(_reserveIn, amountIn, _depositIn);
+        address[2] calldata _reserves,
+        bool[2] calldata _directions
+    ) external override {
+        address outToken = _initSwap(path, _reserves, _directions, amountIn);
 
+        uint256 balanceBefore =
+            IERC20(path[path.length - 1]).balanceOf(address(this));
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             amountIn,
             amountOutMin,
@@ -190,12 +189,15 @@ contract UbeswapMoolaRouter is ReentrancyGuard {
             address(this),
             deadline
         );
+        uint256 balanceAfter =
+            IERC20(path[path.length - 1]).balanceOf(address(this));
 
         _convertTokensOut(
             to,
-            _reserveOut,
-            IERC20(path[path.length - 1]).balanceOf(address(this)),
-            _depositOut
+            outToken,
+            _reserves[1],
+            balanceAfter - balanceBefore,
+            _directions[1]
         );
     }
 }
