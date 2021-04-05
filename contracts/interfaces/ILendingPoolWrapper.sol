@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.3;
 
-interface IMoolaProxy {
+interface ILendingPoolWrapper {
     enum InteractionType {DEPOSIT, WITHDRAW}
     enum Reason {DIRECT, CONVERT_IN, CONVERT_OUT}
 
@@ -21,14 +21,14 @@ interface IMoolaProxy {
     );
 
     /**
-     * Deposits tokens into Moola.
+     * Deposits tokens into the lending pool.
      * @param _reserve The token to deposit.
      * @param _amount The total amount of tokens to deposit.
      */
     function deposit(address _reserve, uint256 _amount) external;
 
     /**
-     * Withdraws tokens from Moola.
+     * Withdraws tokens from the lending pool.
      * @param _reserve The token to withdraw.
      * @param _amount The total amount of tokens to withdraw.
      */

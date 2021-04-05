@@ -5,25 +5,25 @@ pragma solidity ^0.8.3;
 import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/IMoolaProxy.sol";
+import "./interfaces/ILendingPoolWrapper.sol";
 import "./interfaces/IAToken.sol";
 import "./interfaces/ILendingPool.sol";
 import "./interfaces/ILendingPoolCore.sol";
 import "./interfaces/IUbeswapRouter.sol";
 
 /**
- * Proxy to deposit and withdraw into Moola.
+ * Wrapper to deposit and withdraw into a lending pool.
  */
-contract MoolaProxy is IMoolaProxy, ReentrancyGuard {
+contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
     uint16 public constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
 
-    /// @notice Moola lending pool
+    /// @notice Lending pool
     ILendingPool public pool;
 
-    /// @notice Moola lending core
+    /// @notice Lending core
     ILendingPoolCore public core;
 
     constructor(address pool_, address core_) {
@@ -31,11 +31,6 @@ contract MoolaProxy is IMoolaProxy, ReentrancyGuard {
         core = ILendingPoolCore(core_);
     }
 
-    /**
-     * Deposits tokens into Moola.
-     * @param _reserve The token to deposit.
-     * @param _amount The total amount of tokens to deposit.
-     */
     function deposit(address _reserve, uint256 _amount) external override {
         IERC20(_reserve).safeTransferFrom(msg.sender, address(this), _amount);
         _convert(_reserve, _amount, true, Reason.DIRECT);
@@ -45,11 +40,6 @@ contract MoolaProxy is IMoolaProxy, ReentrancyGuard {
         );
     }
 
-    /**
-     * Withdraws tokens from Moola.
-     * @param _reserve The token to withdraw.
-     * @param _amount The total amount of tokens to withdraw.
-     */
     function withdraw(address _reserve, uint256 _amount) external override {
         IERC20(getReserveATokenAddress(_reserve)).safeTransferFrom(
             msg.sender,
@@ -95,7 +85,7 @@ contract MoolaProxy is IMoolaProxy, ReentrancyGuard {
         address aToken = core.getReserveATokenAddress(_reserve);
         require(
             aToken != address(0),
-            "MoolaProxy::getReserveATokenAddress: unknown reserve"
+            "LendingPoolWrapper::getReserveATokenAddress: unknown reserve"
         );
         return aToken;
     }

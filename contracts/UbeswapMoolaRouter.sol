@@ -5,7 +5,7 @@ pragma solidity ^0.8.3;
 import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./MoolaProxy.sol";
+import "./LendingPoolWrapper.sol";
 import "./interfaces/IUbeswapMoolaRouter.sol";
 
 import "./interfaces/IAToken.sol";
@@ -16,7 +16,7 @@ import "./interfaces/IUbeswapRouter.sol";
 /**
  * Router for allowing conversion to/from Moola before swapping.
  */
-contract UbeswapMoolaRouter is MoolaProxy, IUbeswapMoolaRouter {
+contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapMoolaRouter {
     using SafeERC20 for IERC20;
 
     /// @notice Ubeswap router
@@ -26,7 +26,7 @@ contract UbeswapMoolaRouter is MoolaProxy, IUbeswapMoolaRouter {
         address router_,
         address pool_,
         address core_
-    ) MoolaProxy(pool_, core_) {
+    ) LendingPoolWrapper(pool_, core_) {
         router = IUbeswapRouter(router_);
     }
 
