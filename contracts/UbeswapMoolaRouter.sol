@@ -43,6 +43,7 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapMoolaRouter {
             "UbeswapMoolaRouter::_initSwap: _inAmount must be > 0"
         );
 
+        // check if out reserves were set
         if (_reserves[1] == address(0)) {
             _outToken = _directions[1]
                 ? _reserves[1]
@@ -61,6 +62,7 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapMoolaRouter {
             );
         }
 
+        // check if in reserves were set
         if (_reserves[0] != address(0)) {
             address inToken =
                 _directions[0]
