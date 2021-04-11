@@ -25,14 +25,15 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
     constructor(
         address router_,
         address pool_,
-        address core_
-    ) LendingPoolWrapper(pool_, core_) {
+        address core_,
+        address registry_
+    ) LendingPoolWrapper(pool_, core_, registry_) {
         router = IUbeswapRouter(router_);
     }
 
     // Computes the swap that will take place based on the path
-    function _computeSwap(address[] calldata _path)
-        internal
+    function computeSwap(address[] calldata _path)
+        public
         view
         returns (
             address _reserveIn,
@@ -69,7 +70,7 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
                 getReserveATokenAddress(_path[_path.length - 2]) ==
                 _path[_path.length - 1]
             ) {
-                _reserveOut = _path[_path.length - 1];
+                _reserveOut = _path[_path.length - 2];
                 _depositOut = true;
                 endIndex -= 1;
             }
@@ -78,7 +79,7 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
                 _path[_path.length - 2] ==
                 getReserveATokenAddress(_path[_path.length - 1])
             ) {
-                _reserveOut = _path[_path.length - 2];
+                _reserveOut = _path[_path.length - 1];
                 endIndex -= 1;
                 // not needed
                 // _depositOut = false;
@@ -106,7 +107,7 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
             address reserveOut,
             bool depositOut,
             address[] calldata nextPath
-        ) = _computeSwap(_path);
+        ) = computeSwap(_path);
         _reserveOut = reserveOut;
         _depositOut = depositOut;
         _nextPath = nextPath;

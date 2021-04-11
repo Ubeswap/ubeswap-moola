@@ -11,11 +11,24 @@ import "./interfaces/ILendingPool.sol";
 import "./interfaces/ILendingPoolCore.sol";
 import "./interfaces/IUbeswapRouter.sol";
 
+interface IRegistry {
+    function getAddressForStringOrDie(string calldata identifier)
+        external
+        view
+        returns (address);
+
+    function getAddressForOrDie(bytes32) external view returns (address);
+}
+
 /**
  * Wrapper to deposit and withdraw into a lending pool.
  */
 contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    /// @notice Mock CELO address to represent raw CELO tokens
+    address public constant CELO_ADDRESS =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
     uint16 public constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
@@ -26,9 +39,23 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     /// @notice Lending core
     ILendingPoolCore public immutable core;
 
-    constructor(address pool_, address core_) {
+    IRegistry public immutable registry;
+
+    bytes32 public constant GOLD_TOKEN_REGISTRY_ID =
+        keccak256(abi.encodePacked("GoldToken"));
+
+    constructor(
+        address pool_,
+        address core_,
+        address registry_
+    ) {
         pool = ILendingPool(pool_);
         core = ILendingPoolCore(core_);
+        registry = IRegistry(registry_);
+    }
+
+    function getGoldToken() internal view returns (address) {
+        return registry.getAddressForOrDie(GOLD_TOKEN_REGISTRY_ID);
     }
 
     function deposit(address _reserve, uint256 _amount) external override {
@@ -65,7 +92,19 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     ) internal nonReentrant {
         if (_deposit) {
             IERC20(_reserve).safeApprove(address(core), _amount);
-            pool.deposit(_reserve, _amount, UBESWAP_MOOLA_ROUTER_REFERRAL_CODE);
+            if (_reserve == CELO_ADDRESS || _reserve == getGoldToken()) {
+                pool.deposit{value: _amount}(
+                    CELO_ADDRESS,
+                    _amount,
+                    UBESWAP_MOOLA_ROUTER_REFERRAL_CODE
+                );
+            } else {
+                pool.deposit(
+                    _reserve,
+                    _amount,
+                    UBESWAP_MOOLA_ROUTER_REFERRAL_CODE
+                );
+            }
             emit Deposited(_reserve, msg.sender, _reason, _amount);
         } else {
             IAToken(getReserveATokenAddress(_reserve)).redeem(_amount);
@@ -82,11 +121,10 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         override
         returns (address)
     {
-        address aToken = core.getReserveATokenAddress(_reserve);
-        require(
-            aToken != address(0),
-            "LendingPoolWrapper::getReserveATokenAddress: unknown reserve"
-        );
-        return aToken;
+        // helper to make sure we can always get the reserve
+        if (_reserve == getGoldToken()) {
+            _reserve = CELO_ADDRESS;
+        }
+        return core.getReserveATokenAddress(_reserve);
     }
 }

@@ -30,7 +30,12 @@ export const deployRouter: DeployFunction<{
 
   const ubeswapMoolaRouter = await deployCreate2("UbeswapMoolaRouter", {
     factory: UbeswapMoolaRouter__factory,
-    args: [ROUTER_ADDRESS, pools.lendingPool, pools.lendingPoolCore],
+    args: [
+      ROUTER_ADDRESS,
+      pools.lendingPool,
+      pools.lendingPoolCore,
+      "0x000000000000000000000000000000000000ce10",
+    ],
     signer: deployer,
   });
 
