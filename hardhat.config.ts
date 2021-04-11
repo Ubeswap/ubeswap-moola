@@ -86,13 +86,6 @@ export default {
     overwrite: false,
     runOnCompile: true,
   },
-  watcher: {
-    compile: {
-      tasks: ["compile"],
-      files: ["./contracts"],
-      verbose: true,
-    },
-  },
   namedAccounts: {
     deployer: 0,
   },
