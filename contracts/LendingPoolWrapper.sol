@@ -21,10 +21,10 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     uint16 public constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
 
     /// @notice Lending pool
-    ILendingPool public pool;
+    ILendingPool public immutable pool;
 
     /// @notice Lending core
-    ILendingPoolCore public core;
+    ILendingPoolCore public immutable core;
 
     constructor(address pool_, address core_) {
         pool = ILendingPool(pool_);
