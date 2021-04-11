@@ -30,9 +30,13 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
         router = IUbeswapRouter(router_);
     }
 
-    function _initSwap(address[] calldata _path, uint256 _inAmount)
+    // Computes the swap that will take place based on the path
+    function _computeSwap(address[] calldata _path)
         internal
+        view
         returns (
+            address _reserveIn,
+            bool _depositIn,
             address _reserveOut,
             bool _depositOut,
             address[] calldata _nextPath
@@ -43,17 +47,23 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
 
         // cAsset -> mcAsset (deposit)
         if (getReserveATokenAddress(_path[0]) == _path[1]) {
-            _convert(_path[0], _inAmount, true, Reason.CONVERT_IN);
+            _reserveIn = _path[0];
+            _depositIn = true;
             startIndex += 1;
         }
         // mcAsset -> cAsset (withdraw)
         else if (_path[0] == getReserveATokenAddress(_path[1])) {
-            _convert(_path[1], _inAmount, false, Reason.CONVERT_IN);
+            _reserveIn = _path[1];
+            _depositIn = false;
             startIndex += 1;
         }
 
-        // only handle path swap if the path is long enough
-        if (_path.length >= 3) {
+        // only handle out path swap if the path is long enough
+        if (
+            _path.length >= 3 &&
+            // if we already did a conversion and path length is 3, skip.
+            !(_path.length == 3 && startIndex > 0)
+        ) {
             // cAsset -> mcAsset (deposit)
             if (
                 getReserveATokenAddress(_path[_path.length - 2]) ==
@@ -78,6 +88,41 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
         _nextPath = _path[startIndex:endIndex];
     }
 
+    function _initSwap(
+        address[] calldata _path,
+        uint256 _inAmount,
+        uint256 _outAmount
+    )
+        internal
+        returns (
+            address _reserveOut,
+            bool _depositOut,
+            address[] calldata _nextPath
+        )
+    {
+        (
+            address reserveIn,
+            bool depositIn,
+            address reserveOut,
+            bool depositOut,
+            address[] calldata nextPath
+        ) = _computeSwap(_path);
+        _reserveOut = reserveOut;
+        _depositOut = depositOut;
+        _nextPath = nextPath;
+
+        // if out amount is specified, compute the in amount from it
+        if (_outAmount != 0) {
+            _inAmount = router.getAmountsIn(_outAmount, _nextPath)[0];
+        }
+
+        if (reserveIn != address(0)) {
+            IERC20(depositIn ? getReserveATokenAddress(reserveIn) : reserveIn)
+                .safeTransferFrom(msg.sender, address(this), _inAmount);
+            _convert(reserveIn, _inAmount, depositIn, Reason.CONVERT_IN);
+        }
+    }
+
     function _convertTokensOut(
         address _reserveOut,
         bool _depositOut,
@@ -100,9 +145,8 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
         address to,
         uint256 deadline
     ) external override returns (uint256[] memory amounts) {
-        uint256 inAmount = router.getAmountsOut(amountIn, path)[0];
         (address reserveOut, bool depositOut, address[] calldata nextPath) =
-            _initSwap(path, inAmount);
+            _initSwap(path, amountIn, 0);
 
         amounts = router.swapExactTokensForTokens(
             amountIn,
@@ -127,9 +171,8 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
         address to,
         uint256 deadline
     ) external override returns (uint256[] memory amounts) {
-        uint256 inAmount = router.getAmountsIn(amountOut, path)[0];
         (address reserveOut, bool depositOut, address[] calldata nextPath) =
-            _initSwap(path, inAmount);
+            _initSwap(path, 0, amountOut);
 
         amounts = router.swapTokensForExactTokens(
             amountOut,
@@ -155,7 +198,7 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
         uint256 deadline
     ) external override {
         (address reserveOut, bool depositOut, address[] calldata nextPath) =
-            _initSwap(path, amountIn);
+            _initSwap(path, amountIn, 0);
 
         uint256 balanceBefore =
             IERC20(path[path.length - 1]).balanceOf(address(this));
