@@ -22,12 +22,9 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, ITokenRouter {
     /// @notice Ubeswap router
     IUbeswapRouter public immutable router;
 
-    constructor(
-        address router_,
-        address pool_,
-        address core_,
-        address registry_
-    ) LendingPoolWrapper(pool_, core_, registry_) {
+    constructor(address router_, address registry_)
+        LendingPoolWrapper(registry_)
+    {
         router = IUbeswapRouter(router_);
     }
 

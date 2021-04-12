@@ -34,24 +34,32 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     uint16 public constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
 
     /// @notice Lending pool
-    ILendingPool public immutable pool;
+    ILendingPool public pool;
 
     /// @notice Lending core
-    ILendingPoolCore public immutable core;
+    ILendingPoolCore public core;
 
     IRegistry public immutable registry;
 
     bytes32 public constant GOLD_TOKEN_REGISTRY_ID =
         keccak256(abi.encodePacked("GoldToken"));
 
-    constructor(
-        address pool_,
-        address core_,
-        address registry_
-    ) {
-        pool = ILendingPool(pool_);
-        core = ILendingPoolCore(core_);
+    constructor(address registry_) {
         registry = IRegistry(registry_);
+    }
+
+    // initializes the pool (only used for deployment)
+    function initialize(address _pool, address _core) external {
+        require(
+            address(pool) == address(0),
+            "LendingPoolWrapper: pool already set"
+        );
+        require(
+            address(core) == address(0),
+            "LendingPoolWrapper: core already set"
+        );
+        pool = ILendingPool(_pool);
+        core = ILendingPoolCore(_core);
     }
 
     function getGoldToken() internal view returns (address) {

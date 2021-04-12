@@ -44,7 +44,7 @@ export default {
       accounts,
       chainId: ICeloNetwork.MAINNET,
       live: true,
-      gasPrice: 0.5 * 10 ** 9,
+      gasPrice: 2 * 10 ** 8,
       gas: 8000000,
     },
     alfajores: {
@@ -52,7 +52,7 @@ export default {
       accounts,
       chainId: ICeloNetwork.ALFAJORES,
       live: true,
-      gasPrice: 0.5 * 10 ** 9,
+      gasPrice: 2 * 10 ** 8,
       gas: 8000000,
     },
     hardhat: {

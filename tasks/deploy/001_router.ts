@@ -1,4 +1,4 @@
-import { DeployerFn } from "@ubeswap/hardhat-celo";
+import { DeployerFn, doTx } from "@ubeswap/hardhat-celo";
 import { ChainId } from "@ubeswap/sdk";
 import { UbeswapMoolaRouter__factory } from "../../build/types/factories/UbeswapMoolaRouter__factory";
 
@@ -30,14 +30,17 @@ export const deployRouter: DeployerFn<{
 
   const ubeswapMoolaRouter = await deployCreate2("UbeswapMoolaRouter", {
     factory: UbeswapMoolaRouter__factory,
-    args: [
-      ROUTER_ADDRESS,
-      pools.lendingPool,
-      pools.lendingPoolCore,
-      "0x000000000000000000000000000000000000ce10",
-    ],
+    args: [ROUTER_ADDRESS, "0x000000000000000000000000000000000000ce10"],
     signer: deployer,
   });
+
+  await doTx(
+    "Initialize router",
+    UbeswapMoolaRouter__factory.connect(
+      ubeswapMoolaRouter.address,
+      deployer
+    ).initialize(pools.lendingPool, pools.lendingPoolCore)
+  );
 
   return {
     UbeswapMoolaRouter: ubeswapMoolaRouter.address,
