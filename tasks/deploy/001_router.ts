@@ -1,6 +1,6 @@
+import { DeployerFn } from "@ubeswap/hardhat-celo";
 import { ChainId } from "@ubeswap/sdk";
 import { UbeswapMoolaRouter__factory } from "../../build/types/factories/UbeswapMoolaRouter__factory";
-import { DeployFunction } from "./";
 
 const ROUTER_ADDRESS = "0xE3D8bd6Aed4F159bc8000a9cD47CffDb95F96121";
 
@@ -16,7 +16,7 @@ const moolaLendingPools = {
   },
 };
 
-export const deployRouter: DeployFunction<{
+export const deployRouter: DeployerFn<{
   UbeswapMoolaRouter: string;
 }> = async ({ deployer, deployCreate2 }) => {
   const chainId = (await deployer.getChainId()) as ChainId;

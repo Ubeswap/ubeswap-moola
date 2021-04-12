@@ -7,7 +7,7 @@ import ILendingPoolCoreABI from "../build/abi/ILendingPoolCore.json";
 import IATokenABI from "../build/abi/IAToken.json";
 import IERC20ABI from "../build/abi/IERC20.json";
 import IRegistryABI from "../build/abi/IRegistry.json";
-import { UbeswapMoolaRouter__factory } from "../build/types/factories/UbeswapMoolaRouter__factory";
+import { UbeswapMoolaRouter__factory } from "../build/types/";
 import { expect } from "chai";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
