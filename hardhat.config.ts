@@ -5,6 +5,7 @@ import "@typechain/hardhat";
 import "@ubeswap/hardhat-celo";
 import { fornoURLs, ICeloNetwork } from "@ubeswap/hardhat-celo";
 import "dotenv/config";
+import { mkdir, writeFile } from "fs/promises";
 import "hardhat-abi-exporter";
 import "hardhat-gas-reporter";
 import { removeConsoleLog } from "hardhat-preprocessor";
@@ -17,6 +18,29 @@ task("deploy", "Deploys a step", (async (...args) =>
   (await import("./tasks/deploy")).deploy(...args)) as ActionType<{
   step: string;
 }>).addParam("step", "The step to deploy");
+
+task<{ name: string }>(
+  "metadata:write",
+  "Writes the metadata of a contract to disk",
+  async ({ name }, hre) => {
+    const artifact = await hre.artifacts.readArtifact(name);
+    const fqn = `${artifact.sourceName}:${artifact.contractName}`;
+    const info = await hre.artifacts.getBuildInfo(fqn);
+    const metadataStr = (info?.output.contracts[artifact.sourceName]?.[
+      artifact.contractName
+    ] as {
+      metadata?: string;
+    })?.metadata;
+    if (!metadataStr) {
+      throw new Error("metadata not found");
+    }
+    const contractDir = `${__dirname}/build/metadata/${artifact.contractName}`;
+    const outfile = `${contractDir}/metadata.json`;
+    await mkdir(contractDir, { recursive: true });
+    await writeFile(outfile, metadataStr);
+    console.log("Wrote to " + outfile);
+  }
+).addParam("name", "The name of the contract");
 
 const accounts: HDAccountsUserConfig = {
   mnemonic:
@@ -79,6 +103,21 @@ export default {
       optimizer: {
         enabled: true,
         runs: 5000,
+      },
+      metadata: {
+        useLiteralContent: true,
+      },
+      outputSelection: {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata",
+          ],
+          "": ["ast"],
+        },
       },
     },
   },
