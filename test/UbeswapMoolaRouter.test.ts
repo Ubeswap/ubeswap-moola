@@ -53,10 +53,9 @@ describe("UbeswapMoolaRouter", () => {
       const registry = await deployMockContract(wallet, IRegistryABI);
       const moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
         router.address,
-        pool.address,
-        core.address,
         registry.address
       );
+      await moolaRouter.initialize(pool.address, core.address);
 
       await registry.mock.getAddressForOrDie
         ?.withArgs(await moolaRouter.GOLD_TOKEN_REGISTRY_ID())
