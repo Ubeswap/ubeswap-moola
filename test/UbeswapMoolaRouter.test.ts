@@ -13,7 +13,7 @@ import {
 } from "../build/types/";
 import { expect } from "chai";
 import { MockContract } from "ethereum-waffle";
-import { getAddress } from "ethers/lib/utils";
+import { getAddress, solidityKeccak256 } from "ethers/lib/utils";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
@@ -79,15 +79,15 @@ describe("UbeswapMoolaRouter", () => {
     await core.mock.getReserveATokenAddress?.returns(ZERO_ADDR);
 
     const registry = await deployMockContract(wallet, IRegistryABI);
+    await registry.mock.getAddressForOrDie
+      ?.withArgs(solidityKeccak256(["string"], ["GoldToken"]))
+      .returns(CELO.address);
+
     moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
       router.address,
       registry.address
     );
     await moolaRouter.initialize(pool.address, core.address);
-
-    await registry.mock.getAddressForOrDie
-      ?.withArgs(await moolaRouter.GOLD_TOKEN_REGISTRY_ID())
-      .returns(CELO.address);
 
     CUSD_CELO_PATH = [cUSD.address, ...RANDO_PATH, CELO.address];
     CUSD_CELO_AMOUNTS = [1000000, ...RANDO_AMOUNTS, 900000];
