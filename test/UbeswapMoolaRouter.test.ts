@@ -99,68 +99,68 @@ describe("UbeswapMoolaRouter", () => {
   describe("#computeSwap", () => {
     it("works with both in and out", async () => {
       const {
-        _reserveIn,
-        _depositIn,
-        _reserveOut,
-        _depositOut,
-        _nextPath,
+        reserveIn,
+        depositIn,
+        reserveOut,
+        depositOut,
+        nextPath,
       } = await moolaRouter.computeSwap([
         mcUSD.address,
         ...CUSD_CELO_PATH,
         mCELO.address,
       ]);
 
-      expect(_reserveIn).to.equal(cUSD.address);
-      expect(_depositIn).to.equal(false);
-      expect(_reserveOut).to.equal(CELO.address);
-      expect(_depositOut).to.equal(true);
-      expect(_nextPath).to.eql(CUSD_CELO_PATH);
+      expect(reserveIn).to.equal(cUSD.address);
+      expect(depositIn).to.equal(false);
+      expect(reserveOut).to.equal(CELO.address);
+      expect(depositOut).to.equal(true);
+      expect(nextPath).to.eql(CUSD_CELO_PATH);
     });
 
     it("works with neither in nor out", async () => {
       const {
-        _reserveIn,
-        _depositIn,
-        _reserveOut,
-        _depositOut,
-        _nextPath,
+        reserveIn,
+        depositIn,
+        reserveOut,
+        depositOut,
+        nextPath,
       } = await moolaRouter.computeSwap(RANDO_PATH);
 
-      expect(_reserveIn).to.equal(ZERO_ADDR);
-      expect(_depositIn).to.equal(false);
-      expect(_reserveOut).to.equal(ZERO_ADDR);
-      expect(_depositOut).to.equal(false);
-      expect(_nextPath).to.eql(RANDO_PATH);
+      expect(reserveIn).to.equal(ZERO_ADDR);
+      expect(depositIn).to.equal(false);
+      expect(reserveOut).to.equal(ZERO_ADDR);
+      expect(depositOut).to.equal(false);
+      expect(nextPath).to.eql(RANDO_PATH);
     });
 
     it("works with in no out", async () => {
       const {
-        _reserveIn,
-        _depositIn,
-        _reserveOut,
-        _depositOut,
-        _nextPath,
+        reserveIn,
+        depositIn,
+        reserveOut,
+        depositOut,
+        nextPath,
       } = await moolaRouter.computeSwap([mcUSD.address, ...CUSD_CELO_PATH]);
-      expect(_reserveIn).to.equal(cUSD.address);
-      expect(_depositIn).to.equal(false);
-      expect(_reserveOut).to.equal(ZERO_ADDR);
-      expect(_depositOut).to.equal(false);
-      expect(_nextPath).to.eql(CUSD_CELO_PATH);
+      expect(reserveIn).to.equal(cUSD.address);
+      expect(depositIn).to.equal(false);
+      expect(reserveOut).to.equal(ZERO_ADDR);
+      expect(depositOut).to.equal(false);
+      expect(nextPath).to.eql(CUSD_CELO_PATH);
     });
 
     it("works with no in, but out", async () => {
       const {
-        _reserveIn,
-        _depositIn,
-        _reserveOut,
-        _depositOut,
-        _nextPath,
+        reserveIn,
+        depositIn,
+        reserveOut,
+        depositOut,
+        nextPath,
       } = await moolaRouter.computeSwap([...CUSD_CELO_PATH, mCELO.address]);
-      expect(_reserveIn).to.equal(ZERO_ADDR);
-      expect(_depositIn).to.equal(false);
-      expect(_reserveOut).to.equal(CELO.address);
-      expect(_depositOut).to.equal(true);
-      expect(_nextPath).to.eql(CUSD_CELO_PATH);
+      expect(reserveIn).to.equal(ZERO_ADDR);
+      expect(depositIn).to.equal(false);
+      expect(reserveOut).to.equal(CELO.address);
+      expect(depositOut).to.equal(true);
+      expect(nextPath).to.eql(CUSD_CELO_PATH);
     });
   });
 
