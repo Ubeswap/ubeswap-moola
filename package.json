@@ -52,7 +52,7 @@
     "@types/chai": "^4.2.16",
     "@types/mocha": "^8.2.2",
     "@types/node": "^14.14.37",
-    "@ubeswap/hardhat-celo": "^0.7.9",
+    "@ubeswap/hardhat-celo": "^0.7.10",
     "@ubeswap/sdk": "^2.0.1",
     "@ubeswap/solidity-create2-deployer": "^0.6.1",
     "chai": "^4.3.4",

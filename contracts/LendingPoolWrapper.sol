@@ -39,13 +39,15 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     /// @notice Lending core
     ILendingPoolCore public core;
 
-    IRegistry public immutable registry;
+    address public immutable goldToken;
 
     bytes32 public constant GOLD_TOKEN_REGISTRY_ID =
         keccak256(abi.encodePacked("GoldToken"));
 
     constructor(address registry_) {
-        registry = IRegistry(registry_);
+        goldToken = IRegistry(registry_).getAddressForOrDie(
+            GOLD_TOKEN_REGISTRY_ID
+        );
     }
 
     // initializes the pool (only used for deployment)
@@ -60,10 +62,6 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         );
         pool = ILendingPool(_pool);
         core = ILendingPoolCore(_core);
-    }
-
-    function getGoldToken() internal view returns (address) {
-        return registry.getAddressForOrDie(GOLD_TOKEN_REGISTRY_ID);
     }
 
     function deposit(address _reserve, uint256 _amount) external override {
@@ -100,7 +98,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     ) internal nonReentrant {
         if (_deposit) {
             IERC20(_reserve).safeApprove(address(core), _amount);
-            if (_reserve == CELO_ADDRESS || _reserve == getGoldToken()) {
+            if (_reserve == CELO_ADDRESS || _reserve == goldToken) {
                 pool.deposit{value: _amount}(
                     CELO_ADDRESS,
                     _amount,
@@ -130,7 +128,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         returns (address)
     {
         // helper to make sure we can always get the reserve
-        if (_reserve == getGoldToken()) {
+        if (_reserve == goldToken) {
             _reserve = CELO_ADDRESS;
         }
         return core.getReserveATokenAddress(_reserve);
