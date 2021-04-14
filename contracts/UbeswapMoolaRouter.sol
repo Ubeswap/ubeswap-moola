@@ -6,9 +6,7 @@ import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./LendingPoolWrapper.sol";
-import "./interfaces/IAToken.sol";
-import "./interfaces/ILendingPool.sol";
-import "./interfaces/ILendingPoolCore.sol";
+import "./interfaces/IMoola.sol";
 import "./interfaces/IUbeswapRouter.sol";
 
 /**
@@ -91,15 +89,16 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
         address[] calldata _path,
         uint256 _inAmount,
         uint256 _outAmount
-    )
-        private
-        returns (SwapPlan memory _plan, uint256[] memory _initialBalances)
-    {
+    ) private returns (SwapPlan memory _plan) {
         _plan = computeSwap(_path);
 
-        // if out amount is specified, compute the in amount from it
-        if (_outAmount != 0) {
-            _inAmount = router.getAmountsIn(_outAmount, _plan.nextPath)[0];
+        // if we have a path, approve the router to be able to trade
+        if (_plan.nextPath.length > 0) {
+            // if out amount is specified, compute the in amount from it
+            if (_outAmount != 0) {
+                _inAmount = router.getAmountsIn(_outAmount, _plan.nextPath)[0];
+            }
+            IERC20(_plan.nextPath[0]).safeApprove(address(router), _inAmount);
         }
 
         // Handle pulling the initial amount from the contract caller
@@ -114,23 +113,34 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_IN
             );
         }
+    }
 
+    /// @notice Ensures that the ERC20 token balances of this contract before and after
+    // the swap are equal
+    // TODO(igm): remove this once we get an audit
+    // This should NEVER get triggered, but it's better to be safe than sorry
+    modifier balanceUnchanged(address[] calldata _path, address _to) {
         // Populate initial balances for comparison later
-        _initialBalances = new uint256[](_path.length);
+        uint256[] memory _initialBalances = new uint256[](_path.length);
         for (uint256 i = 0; i < _path.length; i++) {
             _initialBalances[i] = IERC20(_path[i]).balanceOf(address(this));
         }
-    }
-
-    // converts out tokens and computes the path amounts
-    function _convertTokensOut(
-        address _reserveOut,
-        bool _depositOut,
-        uint256 _amount
-    ) private {
-        if (_reserveOut != address(0)) {
-            _convert(_reserveOut, _amount, _depositOut, Reason.CONVERT_OUT);
+        _;
+        for (uint256 i = 0; i < _path.length - 1; i++) {
+            uint256 newBalance = IERC20(_path[i]).balanceOf(address(this));
+            require(
+                newBalance == _initialBalances[i],
+                "UbeswapMoolaRouter: tokens left over after swap"
+            );
         }
+        // sends the final tokens to `_to` address
+        // the difference between _initialBalances is intentional-- it allows one to recover
+        // stuck tokens if they are fast enough
+        address lastAddress = _path[_path.length - 1];
+        IERC20(lastAddress).safeTransfer(
+            _to,
+            IERC20(lastAddress).balanceOf(address(this))
+        );
     }
 
     // computes the amounts given the amounts returned by the router
@@ -155,39 +165,19 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
         }
     }
 
-    // TODO(igm): remove this once we get an audit
-    // This should NEVER get triggered, but it's better to be safe than sorry
-    function _cleanupSwap(
-        address[] calldata _path,
-        address _to,
-        uint256[] memory _balances
-    ) internal {
-        for (uint256 i = 0; i < _path.length; i++) {
-            uint256 newBalance = IERC20(_path[i]).balanceOf(address(this));
-            if (i == _path.length - 1) {
-                IERC20(_path[_path.length - 1]).safeTransfer(
-                    _to,
-                    newBalance - _balances[i]
-                );
-            } else {
-                require(
-                    newBalance == _balances[i],
-                    "UbeswapMoolaRouter: tokens left over after swap"
-                );
-            }
-        }
-    }
-
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external override returns (uint256[] memory amounts) {
-        (SwapPlan memory plan, uint256[] memory initialBalances) =
-            _initSwap(path, amountIn, 0);
-
+    )
+        external
+        override
+        balanceUnchanged(path, to)
+        returns (uint256[] memory amounts)
+    {
+        SwapPlan memory plan = _initSwap(path, amountIn, 0);
         if (plan.nextPath.length > 0) {
             amounts = router.swapExactTokensForTokens(
                 amountIn,
@@ -198,7 +188,6 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
             );
         }
         amounts = _computeAmounts(amounts, plan.reserveIn, plan.reserveOut);
-
         if (plan.reserveOut != address(0)) {
             _convert(
                 plan.reserveOut,
@@ -207,7 +196,6 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_OUT
             );
         }
-        _cleanupSwap(path, to, initialBalances);
     }
 
     function swapTokensForExactTokens(
@@ -216,10 +204,13 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external override returns (uint256[] memory amounts) {
-        (SwapPlan memory plan, uint256[] memory initialBalances) =
-            _initSwap(path, 0, amountOut);
-
+    )
+        external
+        override
+        balanceUnchanged(path, to)
+        returns (uint256[] memory amounts)
+    {
+        SwapPlan memory plan = _initSwap(path, 0, amountOut);
         if (plan.nextPath.length > 0) {
             amounts = router.swapTokensForExactTokens(
                 amountOut,
@@ -239,7 +230,6 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_OUT
             );
         }
-        _cleanupSwap(path, to, initialBalances);
     }
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -248,10 +238,8 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external override {
-        (SwapPlan memory plan, uint256[] memory initialBalances) =
-            _initSwap(path, amountIn, 0);
-
+    ) external override balanceUnchanged(path, to) {
+        SwapPlan memory plan = _initSwap(path, amountIn, 0);
         uint256 balanceDiff = 0;
         if (plan.nextPath.length > 0) {
             uint256 balanceBefore =
@@ -268,8 +256,14 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
             balanceDiff = balanceAfter - balanceBefore;
         }
 
-        _convertTokensOut(plan.reserveOut, plan.depositOut, balanceDiff);
-        _cleanupSwap(path, to, initialBalances);
+        if (plan.reserveOut != address(0)) {
+            _convert(
+                plan.reserveOut,
+                balanceDiff,
+                plan.depositOut,
+                Reason.CONVERT_OUT
+            );
+        }
     }
 
     function getAmountsOut(uint256 amountIn, address[] calldata path)

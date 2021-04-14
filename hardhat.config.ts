@@ -57,6 +57,9 @@ export default {
     // only: [],
     // except: []
   },
+  waffle: {
+    default_balance_ether: 1000000,
+  },
   defaultNetwork: "hardhat",
   gasReporter: {
     enabled: process.env.REPORT_GAS ? true : false,

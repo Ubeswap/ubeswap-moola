@@ -6,10 +6,12 @@ import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/ILendingPoolWrapper.sol";
-import "./interfaces/IAToken.sol";
-import "./interfaces/ILendingPool.sol";
-import "./interfaces/ILendingPoolCore.sol";
+import "./interfaces/IMoola.sol";
 import "./interfaces/IUbeswapRouter.sol";
+
+interface IWrappedTestingGold {
+    function unwrapTestingOnly(uint256 _amount) external;
+}
 
 interface IRegistry {
     function getAddressForStringOrDie(string calldata identifier)
@@ -27,7 +29,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Mock CELO address to represent raw CELO tokens
-    address public constant CELO_ADDRESS =
+    address public constant CELO_MAGIC_ADDRESS =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
@@ -87,7 +89,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
      * Converts tokens to/from their Moola representation.
      * @param _reserve The token to deposit or withdraw.
      * @param _amount The total amount of tokens to deposit or withdraw.
-     * @param _deposit If true, deposit the aToken. Otherwise, withdraw.
+     * @param _deposit If true, deposit the token for aTokens. Otherwise, withdraw aTokens to tokens.
      * @param _reason Reason for why the conversion happened.
      */
     function _convert(
@@ -97,14 +99,20 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         Reason _reason
     ) internal nonReentrant {
         if (_deposit) {
-            IERC20(_reserve).safeApprove(address(core), _amount);
-            if (_reserve == CELO_ADDRESS || _reserve == goldToken) {
+            if (_reserve == CELO_MAGIC_ADDRESS || _reserve == goldToken) {
+                // hardhat -- doesn't have celo erc20 so we need to handle it differently
+                if (block.chainid == 31337) {
+                    IWrappedTestingGold(address(goldToken)).unwrapTestingOnly(
+                        _amount
+                    );
+                }
                 pool.deposit{value: _amount}(
-                    CELO_ADDRESS,
+                    CELO_MAGIC_ADDRESS,
                     _amount,
                     UBESWAP_MOOLA_ROUTER_REFERRAL_CODE
                 );
             } else {
+                IERC20(_reserve).safeApprove(address(core), _amount);
                 pool.deposit(
                     _reserve,
                     _amount,
@@ -129,8 +137,15 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     {
         // helper to make sure we can always get the reserve
         if (_reserve == goldToken) {
-            _reserve = CELO_ADDRESS;
+            _reserve = CELO_MAGIC_ADDRESS;
         }
         return core.getReserveATokenAddress(_reserve);
+    }
+
+    /**
+     * @notice This is used to receive payments from a CELO used on Hardhat
+     */
+    receive() external payable {
+        require(block.chainid == 31337, "LendingPoolWrapper: not on hardhat");
     }
 }

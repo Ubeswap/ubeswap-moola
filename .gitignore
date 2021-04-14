@@ -10,3 +10,4 @@ coverage/
 coverage.json
 .env
 yarn-error.log
+test/generated/
