@@ -8,12 +8,15 @@ import IATokenABI from "../build/abi/IAToken.json";
 import IERC20ABI from "../build/abi/IERC20.json";
 import IRegistryABI from "../build/abi/IRegistry.json";
 import {
+  MockGold,
+  MockGold__factory,
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
 import { expect } from "chai";
 import { MockContract } from "ethereum-waffle";
 import { getAddress, solidityKeccak256 } from "ethers/lib/utils";
+import { deployCreate2 } from "@ubeswap/hardhat-celo";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
@@ -37,7 +40,7 @@ describe("UbeswapMoolaRouter", () => {
   let pool: MockContract;
   let core: MockContract;
   let cUSD: MockContract;
-  let CELO: MockContract;
+  let CELO: MockGold;
   let mcUSD: MockContract;
   let mCELO: MockContract;
 
@@ -55,12 +58,19 @@ describe("UbeswapMoolaRouter", () => {
     other1 = wallets[2]!;
   });
 
-  beforeEach("init moola router", async () => {
+  before("init moola router", async () => {
     router = await deployMockContract(wallet, IUbeswapRouterABI);
     pool = await deployMockContract(wallet, ILendingPoolABI);
     core = await deployMockContract(wallet, ILendingPoolCoreABI);
     cUSD = await deployMockContract(wallet, IERC20ABI);
-    CELO = await deployMockContract(wallet, IERC20ABI);
+    CELO = (
+      await deployCreate2({
+        salt: "rando",
+        signer: wallet,
+        factory: MockGold__factory,
+        args: [],
+      })
+    ).contract;
     mcUSD = await deployMockContract(wallet, IATokenABI);
     mCELO = await deployMockContract(wallet, IATokenABI);
 
@@ -78,18 +88,12 @@ describe("UbeswapMoolaRouter", () => {
       .returns(ZERO_ADDR);
     await core.mock.getReserveATokenAddress?.returns(ZERO_ADDR);
 
-    const registry = await deployMockContract(wallet, IRegistryABI);
-    await registry.mock.getAddressForOrDie
-      ?.withArgs(solidityKeccak256(["string"], ["GoldToken"]))
-      .returns(CELO.address);
-
     moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
-      router.address,
-      registry.address
+      router.address
     );
     await moolaRouter.initialize(pool.address, core.address);
 
-    CUSD_CELO_PATH = [cUSD.address, ...RANDO_PATH, CELO.address];
+    CUSD_CELO_PATH = [cUSD.address, ...RANDO_PATH, getAddress(CELO.address)];
     CUSD_CELO_AMOUNTS = [1000000, ...RANDO_AMOUNTS, 900000];
     await router.mock.getAmountsIn
       ?.withArgs(1000000, CUSD_CELO_PATH)
@@ -112,7 +116,7 @@ describe("UbeswapMoolaRouter", () => {
 
       expect(reserveIn).to.equal(cUSD.address);
       expect(depositIn).to.equal(false);
-      expect(reserveOut).to.equal(CELO.address);
+      expect(reserveOut).to.equal(getAddress(CELO.address));
       expect(depositOut).to.equal(true);
       expect(nextPath).to.eql(CUSD_CELO_PATH);
     });
@@ -158,7 +162,7 @@ describe("UbeswapMoolaRouter", () => {
       } = await moolaRouter.computeSwap([...CUSD_CELO_PATH, mCELO.address]);
       expect(reserveIn).to.equal(ZERO_ADDR);
       expect(depositIn).to.equal(false);
-      expect(reserveOut).to.equal(CELO.address);
+      expect(reserveOut).to.equal(getAddress(CELO.address));
       expect(depositOut).to.equal(true);
       expect(nextPath).to.eql(CUSD_CELO_PATH);
     });

@@ -8,8 +8,9 @@ import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 contract MockERC20 is ERC20PresetFixedSupply {
     constructor(string memory name, string memory symbol)
         ERC20PresetFixedSupply(name, symbol, 100_000_000 ether, msg.sender)
+    // solhint-disable-next-line no-empty-blocks
     {
-        // empty
+
     }
 }
 
