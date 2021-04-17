@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.3;
 
+/// @notice Wraps the Moola lending pool
 interface ILendingPoolWrapper {
-    enum InteractionType {DEPOSIT, WITHDRAW}
     enum Reason {DIRECT, CONVERT_IN, CONVERT_OUT}
 
     event Deposited(

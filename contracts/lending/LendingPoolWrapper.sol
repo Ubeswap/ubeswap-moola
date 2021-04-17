@@ -7,7 +7,6 @@ import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/ILendingPoolWrapper.sol";
 import "../interfaces/IMoola.sol";
-import "../interfaces/IUbeswapRouter.sol";
 import "./MoolaLibrary.sol";
 
 interface IWrappedTestingGold {
@@ -15,7 +14,7 @@ interface IWrappedTestingGold {
 }
 
 /**
- * Wrapper to deposit and withdraw into a lending pool.
+ * @notice Wrapper to deposit and withdraw into a lending pool.
  */
 contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -26,10 +25,10 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     /// @notice Lending core
     ILendingPoolCore public core;
 
-    /// @dev Referral code to allow tracking Moola volume originating from Ubeswap.
+    /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
     uint16 public immutable moolaReferralCode;
 
-    /// @dev Celo Gold token
+    /// @notice Celo Gold token
     address public immutable goldToken = MoolaLibrary.getGoldToken();
 
     constructor(uint16 moolaReferralCode_) {
@@ -73,7 +72,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     }
 
     /**
-     * Converts tokens to/from their Moola representation.
+     * @notice Converts tokens to/from their Moola representation.
      * @param _reserve The token to deposit or withdraw.
      * @param _amount The total amount of tokens to deposit or withdraw.
      * @param _deposit If true, deposit the token for aTokens. Otherwise, withdraw aTokens to tokens.

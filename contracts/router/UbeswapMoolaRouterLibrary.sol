@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.3;
 
-import "../interfaces/ILendingPoolWrapper.sol";
 import "../interfaces/IUbeswapRouter.sol";
+import "../interfaces/IMoola.sol";
 import "../lending/MoolaLibrary.sol";
 
 /// @notice Library for computing various router functions

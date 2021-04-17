@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.3;
 
+// Interfaces in this file come from Moola.
+
 interface IAToken {
     function redeem(uint256 _amount) external;
 }

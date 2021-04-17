@@ -14,13 +14,12 @@ interface IUbeswapFeeOnTransferRouter {
     ) external;
 }
 
-/**
- * Router for Ubeswap supporting tokens that take a fee on transfer.
- */
+/// @notice Router for Ubeswap supporting tokens that take a fee on transfer.
 contract UbeswapFeeOnTransferRouter is
     UbeswapMoolaRouterBase,
     IUbeswapFeeOnTransferRouter
 {
+    /// @notice Referral code for the Moola fee-on-transfer router.
     uint16 public constant MOOLA_ROUTER_FOT_REFERRAL_CODE = 0x0422;
 
     constructor(address router_)
