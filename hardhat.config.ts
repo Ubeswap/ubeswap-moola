@@ -109,7 +109,7 @@ export default {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 5000,
+        runs: 10 ** 9,
       },
       metadata: {
         useLiteralContent: true,
