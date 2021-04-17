@@ -8,6 +8,11 @@ import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./LendingPoolWrapper.sol";
 import "./interfaces/IMoola.sol";
 import "./interfaces/IUbeswapRouter.sol";
+import "hardhat/console.sol";
+
+interface INamed {
+    function name() external view returns (string memory);
+}
 
 /**
  * Router for allowing conversion to/from Moola before swapping.
@@ -17,6 +22,23 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
 
     /// @notice Ubeswap router
     IUbeswapRouter public immutable router;
+
+    /// @notice Emitted when tokens that were stuck in the contract were sent somewhere
+    event StuckTokensRemoved(
+        address indexed token,
+        address indexed account,
+        address indexed to,
+        uint256 amount
+    );
+
+    /// @notice Emitted when tokens are swapped
+    event TokensSwapped(
+        address indexed account,
+        address[] indexed path,
+        address indexed to,
+        uint256 amountIn,
+        uint256 amountOut
+    );
 
     /// @notice Plan for executing a swap on the router.
     struct SwapPlan {
@@ -128,8 +150,29 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
         _;
         for (uint256 i = 0; i < _path.length - 1; i++) {
             uint256 newBalance = IERC20(_path[i]).balanceOf(address(this));
+            if (
+                !(// ignore if element == input or element == output
+                _path[i] == _path[0] ||
+                    _path[i] == _path[_path.length - 1] ||
+                    // ensure tokens balances haven't changed
+                    newBalance == _initialBalances[i])
+            ) {
+                console.log(
+                    "leftover %s %s",
+                    INamed(_path[i]).name(),
+                    newBalance,
+                    _initialBalances[i]
+                );
+                for (uint256 j = 0; j < _path.length; j++) {
+                    console.log("path[%s] %s", j, _path[j]);
+                }
+            }
             require(
-                newBalance == _initialBalances[i],
+                // if triangular arb, ignore
+                _path[i] == _path[0] ||
+                    _path[i] == _path[_path.length - 1] ||
+                    // ensure tokens balances haven't changed
+                    newBalance == _initialBalances[i],
                 "UbeswapMoolaRouter: tokens left over after swap"
             );
         }
@@ -141,6 +184,14 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
             _to,
             IERC20(lastAddress).balanceOf(address(this))
         );
+        if (_initialBalances[_initialBalances.length - 1] != 0) {
+            emit StuckTokensRemoved(
+                lastAddress,
+                msg.sender,
+                _to,
+                _initialBalances[_initialBalances.length - 1]
+            );
+        }
     }
 
     // computes the amounts given the amounts returned by the router
@@ -196,6 +247,14 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_OUT
             );
         }
+
+        emit TokensSwapped(
+            msg.sender,
+            path,
+            to,
+            amounts[0],
+            amounts[amounts.length - 1]
+        );
     }
 
     function swapTokensForExactTokens(
@@ -230,6 +289,14 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_OUT
             );
         }
+
+        emit TokensSwapped(
+            msg.sender,
+            path,
+            to,
+            amounts[0],
+            amounts[amounts.length - 1]
+        );
     }
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -264,6 +331,8 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_OUT
             );
         }
+
+        emit TokensSwapped(msg.sender, path, to, amountIn, balanceDiff);
     }
 
     function getAmountsOut(uint256 amountIn, address[] calldata path)
