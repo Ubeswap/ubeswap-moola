@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.3;
 
-import "./UbeswapMoolaRouter.sol";
+import "./UbeswapMoolaRouterBase.sol";
 
 interface IUbeswapFeeOnTransferRouter {
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -18,11 +18,13 @@ interface IUbeswapFeeOnTransferRouter {
  * Router for Ubeswap supporting tokens that take a fee on transfer.
  */
 contract UbeswapFeeOnTransferRouter is
-    UbeswapMoolaRouter,
+    UbeswapMoolaRouterBase,
     IUbeswapFeeOnTransferRouter
 {
+    uint16 public constant MOOLA_ROUTER_FOT_REFERRAL_CODE = 0x0422;
+
     constructor(address router_)
-        UbeswapMoolaRouter(router_)
+        UbeswapMoolaRouterBase(router_, MOOLA_ROUTER_FOT_REFERRAL_CODE)
     // solhint-disable-next-line no-empty-blocks
     {
 

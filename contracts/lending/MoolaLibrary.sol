@@ -21,9 +21,6 @@ library MoolaLibrary {
     address internal constant CELO_MAGIC_ADDRESS =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    /// @dev Referral code to allow tracking Moola volume originating from Ubeswap.
-    uint16 internal constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
-
     /// @dev Address of the Celo registry
     address internal constant CELO_REGISTRY =
         0x000000000000000000000000000000000000ce10;

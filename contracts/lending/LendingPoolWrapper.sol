@@ -20,21 +20,21 @@ interface IWrappedTestingGold {
 contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    /// @notice Mock CELO address to represent raw CELO tokens
-    address public constant CELO_MAGIC_ADDRESS =
-        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
-    /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
-    uint16 public constant UBESWAP_MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
-
     /// @notice Lending pool
     ILendingPool public pool;
 
     /// @notice Lending core
     ILendingPoolCore public core;
 
+    /// @dev Referral code to allow tracking Moola volume originating from Ubeswap.
+    uint16 public immutable moolaReferralCode;
+
     /// @dev Celo Gold token
     address public immutable goldToken = MoolaLibrary.getGoldToken();
+
+    constructor(uint16 moolaReferralCode_) {
+        moolaReferralCode = moolaReferralCode_;
+    }
 
     // initializes the pool (only used for deployment)
     function initialize(address _pool, address _core) external {
@@ -88,24 +88,20 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         if (_deposit) {
             if (
                 MoolaLibrary.getMoolaReserveToken(_reserve) ==
-                CELO_MAGIC_ADDRESS
+                MoolaLibrary.CELO_MAGIC_ADDRESS
             ) {
                 // hardhat -- doesn't have celo erc20 so we need to handle it differently
                 if (block.chainid == 31337) {
                     IWrappedTestingGold(goldToken).unwrapTestingOnly(_amount);
                 }
                 pool.deposit{value: _amount}(
-                    CELO_MAGIC_ADDRESS,
+                    MoolaLibrary.CELO_MAGIC_ADDRESS,
                     _amount,
-                    UBESWAP_MOOLA_ROUTER_REFERRAL_CODE
+                    moolaReferralCode
                 );
             } else {
                 IERC20(_reserve).safeApprove(address(core), _amount);
-                pool.deposit(
-                    _reserve,
-                    _amount,
-                    UBESWAP_MOOLA_ROUTER_REFERRAL_CODE
-                );
+                pool.deposit(_reserve, _amount, moolaReferralCode);
             }
             emit Deposited(_reserve, msg.sender, _reason, _amount);
         } else {

@@ -1,22 +1,21 @@
 import { deployMockContract } from "@ethereum-waffle/mock-contract";
+import { expect } from "chai";
+import { MockContract } from "ethereum-waffle";
 import { BigNumber, Wallet } from "ethers";
+import { getAddress } from "ethers/lib/utils";
 import hre from "hardhat";
-import IUbeswapRouterABI from "../build/abi/IUbeswapRouter.json";
-import ILendingPoolABI from "../build/abi/ILendingPool.json";
-import ILendingPoolCoreABI from "../build/abi/ILendingPoolCore.json";
 import IATokenABI from "../build/abi/IAToken.json";
 import IERC20ABI from "../build/abi/IERC20.json";
-import IRegistryABI from "../build/abi/IRegistry.json";
+import ILendingPoolABI from "../build/abi/ILendingPool.json";
+import ILendingPoolCoreABI from "../build/abi/ILendingPoolCore.json";
+import IUbeswapRouterABI from "../build/abi/IUbeswapRouter.json";
 import {
   MockGold,
   MockGold__factory,
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { expect } from "chai";
-import { MockContract } from "ethereum-waffle";
-import { getAddress, solidityKeccak256 } from "ethers/lib/utils";
-import { deployCreate2 } from "@ubeswap/hardhat-celo";
+import { MOCK_GOLD_ADDRESS } from "./setup.test";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
@@ -62,15 +61,8 @@ describe("UbeswapMoolaRouter", () => {
     router = await deployMockContract(wallet, IUbeswapRouterABI);
     pool = await deployMockContract(wallet, ILendingPoolABI);
     core = await deployMockContract(wallet, ILendingPoolCoreABI);
+    CELO = MockGold__factory.connect(MOCK_GOLD_ADDRESS, wallet);
     cUSD = await deployMockContract(wallet, IERC20ABI);
-    CELO = (
-      await deployCreate2({
-        salt: "rando",
-        signer: wallet,
-        factory: MockGold__factory,
-        args: [],
-      })
-    ).contract;
     mcUSD = await deployMockContract(wallet, IATokenABI);
     mCELO = await deployMockContract(wallet, IATokenABI);
 
@@ -89,7 +81,8 @@ describe("UbeswapMoolaRouter", () => {
     await core.mock.getReserveATokenAddress?.returns(ZERO_ADDR);
 
     moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
-      router.address
+      router.address,
+      router.address // this doesn't matter for our testing
     );
     await moolaRouter.initialize(pool.address, core.address);
 

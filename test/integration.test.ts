@@ -1,16 +1,11 @@
-import { deployMockContract } from "@ethereum-waffle/mock-contract";
 import UbeswapFactoryArtifact from "@ubeswap/core/build/metadata/UniswapV2Factory/artifact.json";
 import UbeswapRouterArtifact from "@ubeswap/core/build/metadata/UniswapV2Router02/artifact.json";
-import {
-  deployContract,
-  deployCreate2,
-} from "@ubeswap/solidity-create2-deployer";
+import { deployContract } from "@ubeswap/solidity-create2-deployer";
 import { expect } from "chai";
 import { BigNumber, ContractTransaction, Wallet } from "ethers";
-import { formatEther, parseEther, solidityKeccak256 } from "ethers/lib/utils";
+import { formatEther, parseEther } from "ethers/lib/utils";
 import hre from "hardhat";
 import { countBy, uniqBy, zip } from "lodash";
-import IRegistryABI from "../build/abi/IRegistry.json";
 import {
   UniswapV2Factory,
   UniswapV2Factory__factory,
@@ -29,6 +24,7 @@ import {
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
+import { MOCK_GOLD_ADDRESS } from "./setup.test";
 
 interface ISwapArgs {
   readonly swapperRouter: UbeswapMoolaRouter;
@@ -218,14 +214,7 @@ describe("UbeswapMoolaRouter swapping", () => {
       "Celo Dollar",
       "cUSD"
     );
-    const CELO = (
-      await deployCreate2({
-        salt: "rando",
-        signer: wallet,
-        factory: MockGold__factory,
-        args: [],
-      })
-    ).contract;
+    const CELO = MockGold__factory.connect(MOCK_GOLD_ADDRESS, wallet);
 
     // send gold
     await CELO.connect(other0).wrap({ value: parseEther("100") });
@@ -266,7 +255,8 @@ describe("UbeswapMoolaRouter swapping", () => {
     );
 
     moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
-      router.address
+      router.address,
+      router.address // this doesn't matter for our testing
     );
     await moolaRouter.initialize(pool.address, core.address);
 

@@ -2,239 +2,34 @@
 
 pragma solidity ^0.8.3;
 
-import "../lending/LendingPoolWrapper.sol";
-import "../interfaces/IUbeswapRouter.sol";
-import "./UbeswapMoolaRouterLibrary.sol";
+import "openzeppelin-solidity/contracts/access/Ownable.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./UbeswapMoolaRouterBase.sol";
 
 /**
  * Router for allowing conversion to/from Moola before swapping.
  */
-contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
+contract UbeswapMoolaRouter is UbeswapMoolaRouterBase, Ownable {
     using SafeERC20 for IERC20;
 
-    /// @notice Ubeswap router
-    IUbeswapRouter public immutable router;
+    /// @notice Emitted when tokens that were stuck in the router contract were recovered
+    event Recovered(address indexed token, uint256 amount);
 
-    /// @notice Emitted when tokens that were stuck in the contract were sent somewhere
-    event StuckTokensRemoved(
-        address indexed token,
-        address indexed account,
-        address indexed to,
-        uint256 amount
-    );
+    uint16 public constant MOOLA_ROUTER_REFERRAL_CODE = 0x0420;
 
-    /// @notice Emitted when tokens are swapped
-    event TokensSwapped(
-        address indexed account,
-        address[] indexed path,
-        address indexed to,
-        uint256 amountIn,
-        uint256 amountOut
-    );
-
-    constructor(address router_) {
-        router = IUbeswapRouter(router_);
-    }
-
-    function _initSwap(
-        address[] calldata _path,
-        uint256 _inAmount,
-        uint256 _outAmount
-    ) internal returns (UbeswapMoolaRouterLibrary.SwapPlan memory _plan) {
-        _plan = UbeswapMoolaRouterLibrary.computeSwap(core, _path);
-
-        // if we have a path, approve the router to be able to trade
-        if (_plan.nextPath.length > 0) {
-            // if out amount is specified, compute the in amount from it
-            if (_outAmount != 0) {
-                _inAmount = router.getAmountsIn(_outAmount, _plan.nextPath)[0];
-            }
-            IERC20(_plan.nextPath[0]).safeApprove(address(router), _inAmount);
-        }
-
-        // Handle pulling the initial amount from the contract caller
-        IERC20(_path[0]).safeTransferFrom(msg.sender, address(this), _inAmount);
-
-        // If in reserve is specified, we must convert
-        if (_plan.reserveIn != address(0)) {
-            _convert(
-                _plan.reserveIn,
-                _inAmount,
-                _plan.depositIn,
-                Reason.CONVERT_IN
-            );
-        }
-    }
-
-    /// @notice Ensures that the ERC20 token balances of this contract before and after
-    // the swap are equal
-    // TODO(igm): remove this once we get an audit
-    // This should NEVER get triggered, but it's better to be safe than sorry
-    modifier balanceUnchanged(address[] calldata _path, address _to) {
-        // Populate initial balances for comparison later
-        uint256[] memory _initialBalances = new uint256[](_path.length);
-        for (uint256 i = 0; i < _path.length; i++) {
-            _initialBalances[i] = IERC20(_path[i]).balanceOf(address(this));
-        }
-        _;
-        for (uint256 i = 0; i < _path.length - 1; i++) {
-            uint256 newBalance = IERC20(_path[i]).balanceOf(address(this));
-            require(
-                // if triangular arb, ignore
-                _path[i] == _path[0] ||
-                    _path[i] == _path[_path.length - 1] ||
-                    // ensure tokens balances haven't changed
-                    newBalance == _initialBalances[i],
-                "UbeswapMoolaRouter: tokens left over after swap"
-            );
-        }
-        // sends the final tokens to `_to` address
-        // the difference between _initialBalances is intentional--
-        // it allows recovering stuck tokens
-        address lastAddress = _path[_path.length - 1];
-        IERC20(lastAddress).safeTransfer(
-            _to,
-            IERC20(lastAddress).balanceOf(address(this))
-        );
-        if (_initialBalances[_initialBalances.length - 1] != 0) {
-            emit StuckTokensRemoved(
-                lastAddress,
-                msg.sender,
-                _to,
-                _initialBalances[_initialBalances.length - 1]
-            );
-        }
-    }
-
-    function _swapConvertOut(
-        UbeswapMoolaRouterLibrary.SwapPlan memory _plan,
-        uint256[] memory _routerAmounts,
-        address[] calldata _path,
-        address _to
-    ) internal returns (uint256[] memory amounts) {
-        amounts = UbeswapMoolaRouterLibrary.computeAmountsFromRouterAmounts(
-            _routerAmounts,
-            _plan.reserveIn,
-            _plan.reserveOut
-        );
-        if (_plan.reserveOut != address(0)) {
-            _convert(
-                _plan.reserveOut,
-                amounts[amounts.length - 1],
-                _plan.depositOut,
-                Reason.CONVERT_OUT
-            );
-        }
-
-        emit TokensSwapped(
-            msg.sender,
-            _path,
-            _to,
-            amounts[0],
-            amounts[amounts.length - 1]
-        );
-    }
-
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    )
-        external
-        override
-        balanceUnchanged(path, to)
-        returns (uint256[] memory amounts)
+    constructor(address router_, address owner_)
+        UbeswapMoolaRouterBase(router_, MOOLA_ROUTER_REFERRAL_CODE)
     {
-        UbeswapMoolaRouterLibrary.SwapPlan memory plan =
-            _initSwap(path, amountIn, 0);
-        if (plan.nextPath.length > 0) {
-            amounts = router.swapExactTokensForTokens(
-                amountIn,
-                amountOutMin,
-                plan.nextPath,
-                address(this),
-                deadline
-            );
-        }
-        amounts = _swapConvertOut(plan, amounts, path, to);
+        transferOwnership(owner_);
     }
 
-    function swapTokensForExactTokens(
-        uint256 amountOut,
-        uint256 amountInMax,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    )
+    /// @notice Added to support recovering tokens stuck in the contract
+    /// This is to ensure that tokens can't get lost
+    function recoverERC20(address tokenAddress, uint256 tokenAmount)
         external
-        override
-        balanceUnchanged(path, to)
-        returns (uint256[] memory amounts)
+        onlyOwner
     {
-        UbeswapMoolaRouterLibrary.SwapPlan memory plan =
-            _initSwap(path, 0, amountOut);
-        if (plan.nextPath.length > 0) {
-            amounts = router.swapTokensForExactTokens(
-                amountOut,
-                amountInMax,
-                plan.nextPath,
-                address(this),
-                deadline
-            );
-        }
-        amounts = _swapConvertOut(plan, amounts, path, to);
-    }
-
-    function getAmountsOut(uint256 _amountIn, address[] calldata _path)
-        external
-        view
-        override
-        returns (uint256[] memory)
-    {
-        return
-            UbeswapMoolaRouterLibrary.getAmountsOut(
-                core,
-                router,
-                _amountIn,
-                _path
-            );
-    }
-
-    function getAmountsIn(uint256 _amountOut, address[] calldata _path)
-        external
-        view
-        override
-        returns (uint256[] memory)
-    {
-        return
-            UbeswapMoolaRouterLibrary.getAmountsIn(
-                core,
-                router,
-                _amountOut,
-                _path
-            );
-    }
-
-    function computeSwap(address[] calldata _path)
-        external
-        view
-        returns (UbeswapMoolaRouterLibrary.SwapPlan memory)
-    {
-        return UbeswapMoolaRouterLibrary.computeSwap(core, _path);
-    }
-
-    function computeAmountsFromRouterAmounts(
-        uint256[] memory _routerAmounts,
-        address _reserveIn,
-        address _reserveOut
-    ) external pure returns (uint256[] memory) {
-        return
-            UbeswapMoolaRouterLibrary.computeAmountsFromRouterAmounts(
-                _routerAmounts,
-                _reserveIn,
-                _reserveOut
-            );
+        IERC20(tokenAddress).safeTransfer(msg.sender, tokenAmount);
+        emit Recovered(tokenAddress, tokenAmount);
     }
 }
