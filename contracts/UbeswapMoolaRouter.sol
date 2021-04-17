@@ -8,7 +8,6 @@ import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./LendingPoolWrapper.sol";
 import "./interfaces/IMoola.sol";
 import "./interfaces/IUbeswapRouter.sol";
-import "hardhat/console.sol";
 
 /**
  * Router for allowing conversion to/from Moola before swapping.

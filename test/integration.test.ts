@@ -5,7 +5,7 @@ import { doTx } from "@ubeswap/hardhat-celo";
 import { getCurrentTime } from "@ubeswap/hardhat-celo/lib/testing";
 import { deployContract } from "@ubeswap/solidity-create2-deployer";
 import { expect } from "chai";
-import { Wallet } from "ethers";
+import { BigNumber, ContractTransaction, Wallet } from "ethers";
 import { formatEther, parseEther, solidityKeccak256 } from "ethers/lib/utils";
 import hre from "hardhat";
 import IRegistryABI from "../build/abi/IRegistry.json";
@@ -34,32 +34,130 @@ import {
 } from "../build/types/";
 import { countBy, uniq, uniqBy, zip } from "lodash";
 
-const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+interface ISwapArgs {
+  readonly swapperRouter: UbeswapMoolaRouter;
+  readonly swapper: Wallet;
+  readonly path: readonly IERC20[];
+  readonly inputToken: IERC20;
+  readonly outputToken: IERC20;
+  readonly innerPath: readonly IERC20[];
+  readonly inAmountDesired: BigNumber;
+  readonly outAmountDesired: BigNumber;
+}
 
-describe("UbeswapMoolaRouter", () => {
+interface ISwapTester {
+  methodName: string;
+  swap: (args: ISwapArgs) => Promise<ContractTransaction>;
+  checks: (args: ISwapArgs) => Promise<void>[];
+  processSwapResult?: (
+    args: ISwapArgs,
+    result: Promise<ContractTransaction>
+  ) => Promise<void>;
+}
+
+const swapExactTokensForTokensTester: ISwapTester = {
+  methodName: "swapExactTokensForTokens",
+  swap: async ({
+    swapperRouter,
+    swapper,
+    path,
+    inAmountDesired,
+    outAmountDesired,
+  }) =>
+    swapperRouter.swapExactTokensForTokens(
+      inAmountDesired,
+      outAmountDesired,
+      path.map((p) => p.address),
+      swapper.address,
+      Math.floor(new Date().getTime() / 1000) + 999999
+    ),
+  checks: ({ swapper, inputToken, outputToken }) => [
+    (async () => {
+      if (inputToken.address !== outputToken.address) {
+        expect(
+          await inputToken.balanceOf(swapper.address),
+          `post-swap: swapper should have no input ${await inputToken.name()}`
+        ).to.equal(0);
+      }
+    })(),
+    (async () => {
+      expect(
+        await outputToken.balanceOf(swapper.address),
+        `post-swap: swapper more than zero output ${await outputToken.name()}`
+      ).to.not.equal(0);
+    })(),
+  ],
+};
+
+const swapTokensForExactTokensTester: ISwapTester = {
+  methodName: "swapTokensForExactTokens",
+  swap: async ({
+    swapperRouter,
+    swapper,
+    path,
+    inAmountDesired,
+    outAmountDesired,
+  }) =>
+    swapperRouter.swapTokensForExactTokens(
+      outAmountDesired,
+      inAmountDesired,
+      path.map((p) => p.address),
+      swapper.address,
+      Math.floor(new Date().getTime() / 1000) + 999999
+    ),
+  checks: ({
+    swapper,
+    inputToken,
+    outputToken,
+    inAmountDesired,
+    outAmountDesired,
+  }) => [
+    // end balance: 0 inputToken, some outputToken UNLESS input == output
+    (async () => {
+      const newBalance = await inputToken.balanceOf(swapper.address);
+      expect(
+        newBalance,
+        `post-swap: swapper should have more than zero input ${await inputToken.name()}`
+      ).to.not.equal(0);
+      expect(
+        newBalance,
+        `post-swap: swapper should have spent ${await inputToken.name()}`
+      ).to.not.equal(inAmountDesired);
+    })(),
+    (async () => {
+      if (inputToken.address === outputToken.address) {
+        const newBalance = await outputToken.balanceOf(swapper.address);
+        expect(
+          newBalance,
+          `post-swap: if input is output, swapper should not output the out ${await outputToken.name()}`
+        ).to.not.equal(outAmountDesired);
+        expect(
+          newBalance,
+          `post-swap: if input is output, swapper should modify balances ${await outputToken.name()}`
+        ).to.not.equal(inAmountDesired);
+      } else {
+        expect(
+          await outputToken.balanceOf(swapper.address),
+          `post-swap: swapper should have preserved output ${await outputToken.name()}`
+        ).to.equal(outAmountDesired);
+      }
+    })(),
+  ],
+  processSwapResult: async ({ swapperRouter }, result) => {
+    await expect(result).to.emit(swapperRouter, "TokensSwapped");
+  },
+};
+
+describe("UbeswapMoolaRouter swapping", () => {
   let wallet: Wallet;
   let other0: Wallet;
-  let other1: Wallet;
-  let chainId: number;
 
   let factory: UniswapV2Factory;
   let router: UniswapV2Router02;
-  let pool: MockLendingPool;
-  let core: MockLendingPoolCore;
-
-  let cUSD: MockERC20;
-  let CELO: MockGold;
-  let mcUSD: MockAToken;
-  let mCELO: MockAToken;
-
-  let rand1: MockERC20;
-  let rand2: MockERC20;
-  let rand3: MockERC20;
-
   let moolaRouter: UbeswapMoolaRouter;
 
-  let CUSD_CELO_PATH_TOKENS: readonly IERC20[];
-  let CUSD_CELO_PATH: readonly string[];
+  // All possible token in/out paths for those ATokens
+  let ALL_PATHS: readonly (readonly IERC20[])[];
 
   const ALL_ATOKENS_SYMBOLS = [
     ["cUSD", "mcUSD"],
@@ -90,11 +188,8 @@ describe("UbeswapMoolaRouter", () => {
 
   before(async () => {
     const wallets = await hre.waffle.provider.getWallets();
-    chainId = await (await hre.waffle.provider.getNetwork()).chainId;
-
     wallet = wallets[0]!;
     other0 = wallets[1]!;
-    other1 = wallets[2]!;
 
     factory = UniswapV2Factory__factory.connect(
       (
@@ -123,35 +218,49 @@ describe("UbeswapMoolaRouter", () => {
   });
 
   before("init moola router", async () => {
-    cUSD = await new MockERC20__factory(wallet).deploy("Celo Dollar", "cUSD");
-    CELO = await new MockGold__factory(wallet).deploy();
+    const cUSD = await new MockERC20__factory(wallet).deploy(
+      "Celo Dollar",
+      "cUSD"
+    );
+    const CELO = await new MockGold__factory(wallet).deploy();
 
     // send gold
     await CELO.connect(other0).wrap({ value: parseEther("100") });
     await CELO.connect(other0).transfer(wallet.address, parseEther("100"));
 
-    mcUSD = await new MockAToken__factory(wallet).deploy(
+    const mcUSD = await new MockAToken__factory(wallet).deploy(
       cUSD.address,
       "Moola Dollar",
       "mcUSD"
     );
-    mCELO = await new MockAToken__factory(wallet).deploy(
+    const mCELO = await new MockAToken__factory(wallet).deploy(
       CELO.address,
       "Moola Celo",
       "mCELO"
     );
 
-    core = await new MockLendingPoolCore__factory(wallet).deploy(
+    const core = await new MockLendingPoolCore__factory(wallet).deploy(
       CELO.address,
       cUSD.address,
       mCELO.address,
       mcUSD.address
     );
-    pool = await new MockLendingPool__factory(wallet).deploy(core.address);
+    const pool = await new MockLendingPool__factory(wallet).deploy(
+      core.address
+    );
 
-    rand1 = await new MockERC20__factory(wallet).deploy("Randy One", "RAN1");
-    rand2 = await new MockERC20__factory(wallet).deploy("Randy Deuce", "RAN2");
-    rand3 = await new MockERC20__factory(wallet).deploy("Randy Tre", "RAN3");
+    const rand1 = await new MockERC20__factory(wallet).deploy(
+      "Randy One",
+      "RAN1"
+    );
+    const rand2 = await new MockERC20__factory(wallet).deploy(
+      "Randy Deuce",
+      "RAN2"
+    );
+    const rand3 = await new MockERC20__factory(wallet).deploy(
+      "Randy Tre",
+      "RAN3"
+    );
 
     const registry = await deployMockContract(wallet, IRegistryABI);
     await registry.mock.getAddressForOrDie
@@ -164,33 +273,16 @@ describe("UbeswapMoolaRouter", () => {
     );
     await moolaRouter.initialize(pool.address, core.address);
 
-    CUSD_CELO_PATH_TOKENS = [cUSD, rand1, rand2, rand3, CELO];
-    CUSD_CELO_PATH = CUSD_CELO_PATH_TOKENS.map((tok) => tok.address);
-    for (let i = 0; i < CUSD_CELO_PATH.length; i++) {
-      await CUSD_CELO_PATH_TOKENS[i]?.approve(
-        router.address,
-        parseEther("100000000")
-      );
-    }
-  });
-
-  let ALL_ATOKENS: readonly [IERC20, MockAToken][];
-  // All possible token in/out paths for those ATokens
-  let ALL_PATHS: readonly (readonly IERC20[])[];
-
-  before("setup swap tester", async () => {
-    ALL_ATOKENS = [
+    // setup swap tester
+    const allAtokens = [
       [cUSD, mcUSD],
       [CELO, mCELO],
-    ];
-    const commonPath = CUSD_CELO_PATH_TOKENS.slice(
-      1,
-      CUSD_CELO_PATH_TOKENS.length - 1
-    );
+    ] as const;
+    const commonPath = [rand1, rand2, rand3];
     ALL_PATHS = [
       commonPath,
-      ...ALL_ATOKENS.flatMap(([token, aToken]) => {
-        const paths = ALL_ATOKENS.flatMap(([outToken, outAToken]) => {
+      ...allAtokens.flatMap(([token, aToken]) => {
+        const paths = allAtokens.flatMap(([outToken, outAToken]) => {
           return [
             [...commonPath, outToken],
             [...commonPath, outAToken],
@@ -209,9 +301,8 @@ describe("UbeswapMoolaRouter", () => {
         ];
       }),
     ];
-  });
 
-  before("setup path liquidty", async () => {
+    // setup path liquidity
     const allPairsWithDuplicates = ALL_PATHS.flatMap((path): [
       IERC20,
       IERC20
@@ -270,107 +361,137 @@ describe("UbeswapMoolaRouter", () => {
     }
   });
 
-  describe("#swap", () => {
-    const testTradePath = (index: number) => {
-      if (!ALL_PATHS_NAMES[index]) {
-        throw new Error(`unknown path ${index}`);
+  const testTradePath = (index: number, tester: ISwapTester) => {
+    if (!ALL_PATHS_NAMES[index]) {
+      throw new Error(`unknown path ${index}`);
+    }
+    it(`trade ${ALL_PATHS_NAMES[index]}`, async () => {
+      const path = ALL_PATHS[index];
+      if (!path) {
+        throw new Error(`no path at index ${index}`);
       }
-      it(`trade ${ALL_PATHS_NAMES[index]}`, async () => {
-        const path = ALL_PATHS[index];
-        if (!path) {
-          throw new Error(`no path at index ${index}`);
-        }
 
-        const [inputToken, ...innerPathWithLast] = path;
-        const innerPath = innerPathWithLast.slice(
-          0,
-          innerPathWithLast.length - 1
-        );
-        const outputToken = innerPathWithLast[innerPathWithLast.length - 1];
+      const [inputToken, ...innerPathWithLast] = path;
+      const innerPath = innerPathWithLast.slice(
+        0,
+        innerPathWithLast.length - 1
+      );
+      const outputToken = innerPathWithLast[innerPathWithLast.length - 1];
 
-        const swapper = hre.waffle.provider.createEmptyWallet();
+      const swapper = hre.waffle.provider.createEmptyWallet();
 
-        if (!inputToken || !outputToken) {
-          throw new Error("path is empty");
-        }
+      if (!inputToken || !outputToken) {
+        throw new Error("path is empty");
+      }
 
+      const inAmountDesired = parseEther("1");
+      const outAmountDesired = parseEther("0.001");
+
+      try {
         // prepare swapper
         await Promise.all([
-          other1.sendTransaction({
+          // send eth
+          other0.sendTransaction({
             to: swapper.address,
             value: parseEther("1"),
           }),
-          await inputToken
-            .transfer(swapper.address, parseEther("1"))
-            .then(async () => {
-              await inputToken
-                .connect(swapper)
-                .approve(moolaRouter.address, parseEther("1"));
-            }),
+          // send in amount
+          inputToken.transfer(swapper.address, inAmountDesired),
+          inputToken
+            .connect(swapper)
+            .approve(moolaRouter.address, inAmountDesired),
         ]);
+      } catch (e) {
+        throw new Error("error preparing swapper: " + e.message);
+      }
 
-        await Promise.all([
-          (async () => {
+      await Promise.all([
+        (async () => {
+          expect(
+            await inputToken.balanceOf(swapper.address),
+            `pre-swap: swapper has desired ${formatEther(
+              inAmountDesired
+            )} ${await inputToken.name()}`
+          ).to.equal(inAmountDesired);
+        })(),
+        // initial balance: 1 in, 0 all other path tokens
+        ...[...innerPath, outputToken].map(async (token) => {
+          if (token.address !== inputToken.address) {
             expect(
-              await inputToken.balanceOf(swapper.address),
-              `pre-swap: swapper has one input ${await inputToken.name()}`
-            ).to.equal(parseEther("1"));
-          })(),
-          // initial balance: 1 in, 0 all other path tokens
-          ...[...innerPath, outputToken].map(async (token) => {
-            if (token.address !== inputToken.address) {
-              expect(
-                await token.balanceOf(swapper.address),
-                `pre-swap: swapper should have no ${await token.name()}`
-              ).to.equal(0);
-            }
-          }),
-          // router is empty for all path tokens
-          ...path.map(async (token) => {
-            expect(
-              await token.balanceOf(moolaRouter.address),
-              `pre-swap: router should have no ${await token.name()}`
+              await token.balanceOf(swapper.address),
+              `pre-swap: swapper should have no ${await token.name()}`
             ).to.equal(0);
-          }),
-        ]);
+          }
+        }),
+        // router is empty for all path tokens
+        ...path.map(async (token) => {
+          expect(
+            await token.balanceOf(moolaRouter.address),
+            `pre-swap: router should have no ${await token.name()}`
+          ).to.equal(0);
+        }),
+      ]);
 
-        await moolaRouter.connect(swapper).swapExactTokensForTokens(
-          parseEther("1"),
-          parseEther("0.001"),
-          path.map((p) => p.address),
-          swapper.address,
-          Math.floor(new Date().getTime() / 1000) + 999999
-        );
-
-        await Promise.all([
-          // router is empty afterwards for all path tokens
-          ...path.map(async (token) => {
+      const args: ISwapArgs = {
+        swapperRouter: moolaRouter.connect(swapper),
+        swapper,
+        path,
+        inputToken,
+        outputToken,
+        innerPath,
+        inAmountDesired,
+        outAmountDesired,
+      };
+      try {
+        const swapResult = tester.swap(args);
+        if (tester.processSwapResult) {
+          await tester.processSwapResult(args, swapResult);
+        } else {
+          await swapResult;
+        }
+      } catch (e) {
+        throw new Error("error swapping: " + e.message);
+      }
+      await Promise.all([
+        ...tester.checks(args),
+        // router is empty afterwards for all path tokens
+        ...path.map(async (token) => {
+          expect(
+            await token.balanceOf(moolaRouter.address),
+            `post-swap: router should have no ${await token.name()}`
+          ).to.equal(0);
+        }),
+        ...innerPath.map(async (token) => {
+          if (
+            token.address !== outputToken.address &&
+            token.address !== inputToken.address
+          ) {
             expect(
-              await token.balanceOf(moolaRouter.address),
-              `post-swap: router should have no ${await token.name()}`
+              await token.balanceOf(swapper.address),
+              `post-swap: swapper should have no ${await token.name()}`
             ).to.equal(0);
-          }),
-          // end balance: 0 inputToken, some outputToken UNLESS input == output
-          ...[inputToken, ...innerPath].map(async (token) => {
-            if (token.address !== outputToken.address) {
-              expect(
-                await token.balanceOf(swapper.address),
-                `post-swap: swapper should have no ${await token.name()}`
-              ).to.equal(0);
-            }
-          }),
-          (async () => {
-            expect(
-              await outputToken.balanceOf(swapper.address),
-              `post-swap: swapper more than zero output ${await outputToken.name()}`
-            ).to.not.equal(0);
-          })(),
-        ]);
-      });
-    };
-
-    ALL_PATHS_NAMES.forEach((_, i) => {
-      testTradePath(i);
+          }
+        }),
+      ]);
     });
-  });
+  };
+
+  const testMethod = (tester: ISwapTester) => {
+    describe(`#${tester.methodName}`, () => {
+      ALL_PATHS_NAMES
+        //
+        // .slice(0, 15)
+        .forEach((_, i) => {
+          testTradePath(i, tester);
+        });
+    });
+  };
+
+  [
+    //
+    swapTokensForExactTokensTester,
+    //
+    swapExactTokensForTokensTester,
+    //
+  ].map(testMethod);
 });

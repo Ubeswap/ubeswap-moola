@@ -5,6 +5,7 @@ import "@typechain/hardhat";
 import "@ubeswap/hardhat-celo";
 import { fornoURLs, ICeloNetwork } from "@ubeswap/hardhat-celo";
 import "dotenv/config";
+import { parseEther } from "ethers/lib/utils";
 import { mkdir, writeFile } from "fs/promises";
 import "hardhat-abi-exporter";
 import "hardhat-gas-reporter";
@@ -84,7 +85,10 @@ export default {
     },
     hardhat: {
       chainId: 31337,
-      accounts,
+      accounts: {
+        ...accounts,
+        accountsBalance: parseEther("1000000").toString(),
+      },
     },
   },
   paths: {
