@@ -10,10 +10,6 @@ import "./interfaces/IMoola.sol";
 import "./interfaces/IUbeswapRouter.sol";
 import "hardhat/console.sol";
 
-interface INamed {
-    function name() external view returns (string memory);
-}
-
 /**
  * Router for allowing conversion to/from Moola before swapping.
  */
@@ -150,23 +146,6 @@ contract UbeswapMoolaRouter is LendingPoolWrapper, IUbeswapRouter {
         _;
         for (uint256 i = 0; i < _path.length - 1; i++) {
             uint256 newBalance = IERC20(_path[i]).balanceOf(address(this));
-            if (
-                !(// ignore if element == input or element == output
-                _path[i] == _path[0] ||
-                    _path[i] == _path[_path.length - 1] ||
-                    // ensure tokens balances haven't changed
-                    newBalance == _initialBalances[i])
-            ) {
-                console.log(
-                    "leftover %s %s",
-                    INamed(_path[i]).name(),
-                    newBalance,
-                    _initialBalances[i]
-                );
-                for (uint256 j = 0; j < _path.length; j++) {
-                    console.log("path[%s] %s", j, _path[j]);
-                }
-            }
             require(
                 // if triangular arb, ignore
                 _path[i] == _path[0] ||

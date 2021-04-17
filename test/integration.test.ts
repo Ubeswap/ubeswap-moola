@@ -262,7 +262,6 @@ describe("UbeswapMoolaRouter", () => {
           Math.floor(new Date().getTime() / 1000) + 1800000,
           { gasLimit: 7000000 }
         );
-        console.log("PAIR", `${await tokenA.name()}-${await tokenB.name()}`);
       } catch (e) {
         throw new Error(
           `Error providing liquidity to ${await tokenA.name()}-${await tokenB.name()}`
@@ -282,31 +281,41 @@ describe("UbeswapMoolaRouter", () => {
           throw new Error(`no path at index ${index}`);
         }
 
-        const swapper = hre.waffle.provider.createEmptyWallet();
-        await other1.sendTransaction({
-          to: swapper.address,
-          value: parseEther("1"),
-        });
-
         const [inputToken, ...innerPathWithLast] = path;
         const innerPath = innerPathWithLast.slice(
           0,
           innerPathWithLast.length - 1
         );
         const outputToken = innerPathWithLast[innerPathWithLast.length - 1];
+
+        const swapper = hre.waffle.provider.createEmptyWallet();
+
         if (!inputToken || !outputToken) {
           throw new Error("path is empty");
         }
-        await inputToken.transfer(swapper.address, parseEther("1"));
-        await inputToken
-          .connect(swapper)
-          .approve(moolaRouter.address, parseEther("1"));
 
-        expect(
-          await inputToken.balanceOf(swapper.address),
-          `pre-swap: swapper has one input ${await inputToken.name()}`
-        ).to.equal(parseEther("1"));
+        // prepare swapper
         await Promise.all([
+          other1.sendTransaction({
+            to: swapper.address,
+            value: parseEther("1"),
+          }),
+          await inputToken
+            .transfer(swapper.address, parseEther("1"))
+            .then(async () => {
+              await inputToken
+                .connect(swapper)
+                .approve(moolaRouter.address, parseEther("1"));
+            }),
+        ]);
+
+        await Promise.all([
+          (async () => {
+            expect(
+              await inputToken.balanceOf(swapper.address),
+              `pre-swap: swapper has one input ${await inputToken.name()}`
+            ).to.equal(parseEther("1"));
+          })(),
           // initial balance: 1 in, 0 all other path tokens
           ...[...innerPath, outputToken].map(async (token) => {
             if (token.address !== inputToken.address) {
@@ -318,12 +327,10 @@ describe("UbeswapMoolaRouter", () => {
           }),
           // router is empty for all path tokens
           ...path.map(async (token) => {
-            for (const token of path) {
-              expect(
-                await token.balanceOf(moolaRouter.address),
-                `pre-swap: router should have no ${await token.name()}`
-              ).to.equal(0);
-            }
+            expect(
+              await token.balanceOf(moolaRouter.address),
+              `pre-swap: router should have no ${await token.name()}`
+            ).to.equal(0);
           }),
         ]);
 
@@ -352,12 +359,13 @@ describe("UbeswapMoolaRouter", () => {
               ).to.equal(0);
             }
           }),
+          (async () => {
+            expect(
+              await outputToken.balanceOf(swapper.address),
+              `post-swap: swapper more than zero output ${await outputToken.name()}`
+            ).to.not.equal(0);
+          })(),
         ]);
-
-        expect(
-          await outputToken.balanceOf(swapper.address),
-          `post-swap: swapper more than zero output ${await outputToken.name()}`
-        ).to.not.equal(0);
       });
     };
 
