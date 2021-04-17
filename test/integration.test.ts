@@ -19,12 +19,13 @@ import {
   MockGold__factory,
   MockLendingPoolCore__factory,
   MockLendingPool__factory,
+  MockRegistry__factory,
 } from "../build/types";
 import {
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { MOCK_GOLD_ADDRESS, MOCK_LPC_ADDRESS } from "./setup.test";
+import { MOCK_LPC_KEY, MOCK_REGISTRY_ADDRESS } from "./setup.test";
 
 interface ISwapArgs {
   readonly swapperRouter: UbeswapMoolaRouter;
@@ -210,7 +211,14 @@ describe("UbeswapMoolaRouter swapping", () => {
   });
 
   before("init moola router", async () => {
-    const core = MockLendingPoolCore__factory.connect(MOCK_LPC_ADDRESS, wallet);
+    const registry = MockRegistry__factory.connect(
+      MOCK_REGISTRY_ADDRESS,
+      wallet
+    );
+    const core = MockLendingPoolCore__factory.connect(
+      await registry.getAddressForOrDie(MOCK_LPC_KEY),
+      wallet
+    );
     const pool = await new MockLendingPool__factory(wallet).deploy(
       core.address
     );

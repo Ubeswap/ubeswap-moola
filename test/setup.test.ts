@@ -11,10 +11,12 @@ import {
   MockRegistry__factory,
 } from "../build/types";
 
-export const MOCK_LPC_ADDRESS = getAddress(
-  "0xff90d41fee89bcf4205fb249c2b3d1a405813601"
-);
-export const MOCK_GOLD_ADDRESS = "0x6E5bB2f456E6e4612B9D1D5EdD337810740162a2";
+export const MOCK_LPC_KEY = solidityKeccak256(["string"], ["LendingPoolCore"]);
+
+export const MOCK_GOLD_KEY = solidityKeccak256(["string"], ["GoldToken"]);
+
+export const MOCK_REGISTRY_ADDRESS =
+  "0xd5Fd7f35752300C24cb6C2D4c954A34463070432";
 
 before(async () => {
   const { signer: deployer, provider } = await makeCommonEnvironment(hre);
@@ -47,8 +49,10 @@ before(async () => {
   console.log("Mock lending pool core: " + lpc.address);
   console.log("Mock Gold: " + (await lpc.contract.celo()));
 
+  await mockRegistry.contract.setAddress(MOCK_LPC_KEY, lpc.address);
+
   await mockRegistry.contract.setAddress(
-    solidityKeccak256(["string"], ["GoldToken"]),
+    MOCK_GOLD_KEY,
     await lpc.contract.celo()
   );
 });

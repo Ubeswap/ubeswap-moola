@@ -4,10 +4,6 @@ import { MockContract } from "ethereum-waffle";
 import { BigNumber, Wallet } from "ethers";
 import { getAddress, parseEther } from "ethers/lib/utils";
 import hre from "hardhat";
-import IATokenABI from "../build/abi/IAToken.json";
-import IERC20ABI from "../build/abi/IERC20.json";
-import ILendingPoolABI from "../build/abi/ILendingPool.json";
-import ILendingPoolCoreABI from "../build/abi/ILendingPoolCore.json";
 import IUbeswapRouterABI from "../build/abi/IUbeswapRouter.json";
 import {
   MockAToken,
@@ -20,10 +16,11 @@ import {
   MockLendingPoolCore,
   MockLendingPoolCore__factory,
   MockLendingPool__factory,
+  MockRegistry__factory,
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { MOCK_GOLD_ADDRESS, MOCK_LPC_ADDRESS } from "./setup.test";
+import { MOCK_LPC_KEY, MOCK_REGISTRY_ADDRESS } from "./setup.test";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
@@ -68,7 +65,14 @@ describe("UbeswapMoolaRouter", () => {
   before("init moola router", async () => {
     router = await deployMockContract(wallet, IUbeswapRouterABI);
 
-    core = MockLendingPoolCore__factory.connect(MOCK_LPC_ADDRESS, wallet);
+    const registry = MockRegistry__factory.connect(
+      MOCK_REGISTRY_ADDRESS,
+      wallet
+    );
+    core = MockLendingPoolCore__factory.connect(
+      await registry.getAddressForOrDie(MOCK_LPC_KEY),
+      wallet
+    );
     pool = await new MockLendingPool__factory(wallet).deploy(core.address);
 
     cUSD = MockERC20__factory.connect(await core.cusd(), wallet);
