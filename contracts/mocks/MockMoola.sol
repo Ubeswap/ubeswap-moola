@@ -9,44 +9,64 @@ import "../interfaces/IMoola.sol";
 import "./MockERC20.sol";
 
 contract MockAToken is ERC20, IAToken {
+    MockLendingPoolCore public immutable core;
     IERC20 public immutable underlying;
 
     constructor(
+        MockLendingPoolCore core_,
         IERC20 _underlying,
         string memory name,
         string memory symbol
     ) ERC20(name, symbol) {
+        core = core_;
         underlying = _underlying;
     }
 
     function mint(uint256 _amount) external {
-        underlying.transferFrom(msg.sender, address(this), _amount);
+        require(msg.sender == address(core), "MockMoola: minter not core");
         _mint(msg.sender, _amount);
     }
 
     function redeem(uint256 _amount) external override {
         _burn(msg.sender, _amount);
-        underlying.transfer(msg.sender, _amount);
+        core.redeemTo(msg.sender, _amount);
     }
 }
 
 contract MockLendingPoolCore is ILendingPoolCore {
-    MockGold public immutable celo;
+    MockGold public celo;
+    MockERC20 public cusd;
+    MockAToken public mcelo;
+    MockAToken public mcusd;
+
     mapping(address => address) public tokens;
 
     /// @notice Mock CELO address to represent raw CELO tokens
     address public constant CELO_MAGIC_ADDRESS =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    constructor(
-        address celo_,
-        address cusd,
-        address mcelo,
-        address mcusd
-    ) {
-        celo = MockGold(celo_);
-        tokens[CELO_MAGIC_ADDRESS] = mcelo;
-        tokens[cusd] = mcusd;
+    function initialize() external {
+        celo = new MockGold();
+        cusd = new MockERC20("Celo Dollar", "cUSD");
+        mcelo = new MockAToken(this, celo, "Moola Celo", "mCELO");
+        mcusd = new MockAToken(this, cusd, "Moola cUSD", "mcUSD");
+        tokens[CELO_MAGIC_ADDRESS] = address(mcelo);
+        tokens[address(cusd)] = address(mcusd);
+        cusd.transfer(msg.sender, cusd.balanceOf(address(this)));
+    }
+
+    function redeemTo(address _user, uint256 _amount) external {
+        require(
+            msg.sender == address(mcelo) || msg.sender == address(mcusd),
+            "MockMoola: invalid sender"
+        );
+        IERC20 underlying = MockAToken(msg.sender).underlying();
+        if (underlying == celo) {
+            celo.unwrapTestingOnly(_amount);
+            Address.sendValue(payable(_user), _amount);
+        } else {
+            underlying.transfer(_user, _amount);
+        }
     }
 
     function getReserveATokenAddress(address _reserve)
@@ -66,13 +86,18 @@ contract MockLendingPoolCore is ILendingPoolCore {
         if (_reserve == CELO_MAGIC_ADDRESS) {
             require(msg.value == _amount, "MockMoola: deposit mismatch");
             celo.wrap{value: _amount}();
-            celo.approve(address(tokens[_reserve]), _amount);
         } else {
             IERC20(_reserve).transferFrom(_sender, address(this), _amount);
-            IERC20(_reserve).approve(address(tokens[_reserve]), _amount);
         }
         MockAToken(tokens[_reserve]).mint(_amount);
         MockAToken(tokens[_reserve]).transfer(_sender, _amount);
+    }
+
+    receive() external payable {
+        require(
+            msg.sender == address(celo),
+            "MockMoola: must be celo to receive"
+        );
     }
 }
 

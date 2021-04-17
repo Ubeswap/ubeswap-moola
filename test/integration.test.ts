@@ -24,7 +24,7 @@ import {
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { MOCK_GOLD_ADDRESS } from "./setup.test";
+import { MOCK_GOLD_ADDRESS, MOCK_LPC_ADDRESS } from "./setup.test";
 
 interface ISwapArgs {
   readonly swapperRouter: UbeswapMoolaRouter;
@@ -210,36 +210,20 @@ describe("UbeswapMoolaRouter swapping", () => {
   });
 
   before("init moola router", async () => {
-    const cUSD = await new MockERC20__factory(wallet).deploy(
-      "Celo Dollar",
-      "cUSD"
+    const core = MockLendingPoolCore__factory.connect(MOCK_LPC_ADDRESS, wallet);
+    const pool = await new MockLendingPool__factory(wallet).deploy(
+      core.address
     );
-    const CELO = MockGold__factory.connect(MOCK_GOLD_ADDRESS, wallet);
+
+    const cUSD = MockERC20__factory.connect(await core.cusd(), wallet);
+    const CELO = MockGold__factory.connect(await core.celo(), wallet);
 
     // send gold
     await CELO.connect(other0).wrap({ value: parseEther("100") });
     await CELO.connect(other0).transfer(wallet.address, parseEther("100"));
 
-    const mcUSD = await new MockAToken__factory(wallet).deploy(
-      cUSD.address,
-      "Moola Dollar",
-      "mcUSD"
-    );
-    const mCELO = await new MockAToken__factory(wallet).deploy(
-      CELO.address,
-      "Moola Celo",
-      "mCELO"
-    );
-
-    const core = await new MockLendingPoolCore__factory(wallet).deploy(
-      CELO.address,
-      cUSD.address,
-      mCELO.address,
-      mcUSD.address
-    );
-    const pool = await new MockLendingPool__factory(wallet).deploy(
-      core.address
-    );
+    const mcUSD = MockAToken__factory.connect(await core.mcusd(), wallet);
+    const mCELO = MockAToken__factory.connect(await core.mcelo(), wallet);
 
     const rand1 = await new MockERC20__factory(wallet).deploy(
       "Randy One",

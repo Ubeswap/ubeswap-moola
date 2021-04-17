@@ -2,7 +2,7 @@ import { deployMockContract } from "@ethereum-waffle/mock-contract";
 import { expect } from "chai";
 import { MockContract } from "ethereum-waffle";
 import { BigNumber, Wallet } from "ethers";
-import { getAddress } from "ethers/lib/utils";
+import { getAddress, parseEther } from "ethers/lib/utils";
 import hre from "hardhat";
 import IATokenABI from "../build/abi/IAToken.json";
 import IERC20ABI from "../build/abi/IERC20.json";
@@ -10,12 +10,20 @@ import ILendingPoolABI from "../build/abi/ILendingPool.json";
 import ILendingPoolCoreABI from "../build/abi/ILendingPoolCore.json";
 import IUbeswapRouterABI from "../build/abi/IUbeswapRouter.json";
 import {
+  MockAToken,
+  MockAToken__factory,
+  MockERC20,
+  MockERC20__factory,
   MockGold,
   MockGold__factory,
+  MockLendingPool,
+  MockLendingPoolCore,
+  MockLendingPoolCore__factory,
+  MockLendingPool__factory,
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { MOCK_GOLD_ADDRESS } from "./setup.test";
+import { MOCK_GOLD_ADDRESS, MOCK_LPC_ADDRESS } from "./setup.test";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
@@ -36,12 +44,12 @@ describe("UbeswapMoolaRouter", () => {
   let chainId: number;
 
   let router: MockContract;
-  let pool: MockContract;
-  let core: MockContract;
-  let cUSD: MockContract;
+  let pool: MockLendingPool;
+  let core: MockLendingPoolCore;
+  let cUSD: MockERC20;
   let CELO: MockGold;
-  let mcUSD: MockContract;
-  let mCELO: MockContract;
+  let mcUSD: MockAToken;
+  let mCELO: MockAToken;
 
   let moolaRouter: UbeswapMoolaRouter;
 
@@ -59,26 +67,19 @@ describe("UbeswapMoolaRouter", () => {
 
   before("init moola router", async () => {
     router = await deployMockContract(wallet, IUbeswapRouterABI);
-    pool = await deployMockContract(wallet, ILendingPoolABI);
-    core = await deployMockContract(wallet, ILendingPoolCoreABI);
-    CELO = MockGold__factory.connect(MOCK_GOLD_ADDRESS, wallet);
-    cUSD = await deployMockContract(wallet, IERC20ABI);
-    mcUSD = await deployMockContract(wallet, IATokenABI);
-    mCELO = await deployMockContract(wallet, IATokenABI);
 
-    await core.mock.getReserveATokenAddress
-      ?.withArgs(cUSD.address)
-      .returns(mcUSD.address);
-    await core.mock.getReserveATokenAddress
-      ?.withArgs(mcUSD.address)
-      .returns(ZERO_ADDR);
-    await core.mock.getReserveATokenAddress
-      ?.withArgs("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
-      .returns(mCELO.address);
-    await core.mock.getReserveATokenAddress
-      ?.withArgs(mCELO.address)
-      .returns(ZERO_ADDR);
-    await core.mock.getReserveATokenAddress?.returns(ZERO_ADDR);
+    core = MockLendingPoolCore__factory.connect(MOCK_LPC_ADDRESS, wallet);
+    pool = await new MockLendingPool__factory(wallet).deploy(core.address);
+
+    cUSD = MockERC20__factory.connect(await core.cusd(), wallet);
+    CELO = MockGold__factory.connect(await core.celo(), wallet);
+
+    // send gold
+    await CELO.connect(other0).wrap({ value: parseEther("100") });
+    await CELO.connect(other0).transfer(wallet.address, parseEther("100"));
+
+    mcUSD = MockAToken__factory.connect(await core.mcusd(), wallet);
+    mCELO = MockAToken__factory.connect(await core.mcelo(), wallet);
 
     moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
       router.address,
@@ -107,7 +108,7 @@ describe("UbeswapMoolaRouter", () => {
         mCELO.address,
       ]);
 
-      expect(reserveIn).to.equal(cUSD.address);
+      expect(reserveIn).to.equal(getAddress(cUSD.address));
       expect(depositIn).to.equal(false);
       expect(reserveOut).to.equal(getAddress(CELO.address));
       expect(depositOut).to.equal(true);

@@ -15,10 +15,13 @@ contract MockERC20 is ERC20PresetFixedSupply {
 }
 
 contract MockGold is ERC20("Celo", "CELO") {
-    function unwrapTestingOnly(uint256 _amount) external {
-        address payable recipient = payable(msg.sender);
+    function unwrapTo(address payable recipient, uint256 _amount) public {
         _burn(recipient, _amount);
         Address.sendValue(recipient, _amount);
+    }
+
+    function unwrapTestingOnly(uint256 _amount) external {
+        unwrapTo(payable(msg.sender), _amount);
     }
 
     function wrap() external payable {

@@ -1,14 +1,20 @@
+import { makeCommonEnvironment } from "@ubeswap/hardhat-celo";
 import {
   deployCreate2,
   deployerAddress,
   deployFactory,
 } from "@ubeswap/solidity-create2-deployer";
-import { parseEther } from "ethers/lib/utils";
+import { getAddress, parseEther, solidityKeccak256 } from "ethers/lib/utils";
 import hre from "hardhat";
-import { makeCommonEnvironment } from "@ubeswap/hardhat-celo";
-import { MockGold__factory } from "../build/types";
+import {
+  MockLendingPoolCore__factory,
+  MockRegistry__factory,
+} from "../build/types";
 
-export const MOCK_GOLD_ADDRESS = "0x3F735F0E3bdcFaA6e53FD0D9C844a3fcd3CCC81b";
+export const MOCK_LPC_ADDRESS = getAddress(
+  "0xff90d41fee89bcf4205fb249c2b3d1a405813601"
+);
+export const MOCK_GOLD_ADDRESS = "0x6E5bB2f456E6e4612B9D1D5EdD337810740162a2";
 
 before(async () => {
   const { signer: deployer, provider } = await makeCommonEnvironment(hre);
@@ -20,10 +26,29 @@ before(async () => {
   await deployFactory(provider);
 
   const wallets = await hre.waffle.provider.getWallets();
-  await deployCreate2({
+
+  const mockRegistry = await deployCreate2({
     salt: "rando",
     signer: wallets[0]!,
-    factory: MockGold__factory,
+    factory: MockRegistry__factory,
     args: [],
   });
+
+  const lpc = await deployCreate2({
+    salt: "rando",
+    signer: wallets[0]!,
+    factory: MockLendingPoolCore__factory,
+    args: [],
+  });
+
+  await lpc.contract.initialize();
+
+  console.log("Mock lookup: " + mockRegistry.address);
+  console.log("Mock lending pool core: " + lpc.address);
+  console.log("Mock Gold: " + (await lpc.contract.celo()));
+
+  await mockRegistry.contract.setAddress(
+    solidityKeccak256(["string"], ["GoldToken"]),
+    await lpc.contract.celo()
+  );
 });

@@ -11,6 +11,8 @@ import "./MoolaLibrary.sol";
 
 interface IWrappedTestingGold {
     function unwrapTestingOnly(uint256 _amount) external;
+
+    function wrap() external payable;
 }
 
 /**
@@ -35,7 +37,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         moolaReferralCode = moolaReferralCode_;
     }
 
-    // initializes the pool (only used for deployment)
+    /// @notice initializes the pool (only used for deployment)
     function initialize(address _pool, address _core) external {
         require(
             address(pool) == address(0),
@@ -114,10 +116,20 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
         }
     }
 
-    /**
-     * @notice This is used to receive payments from CELO used on Hardhat
-     */
+    /// @notice This is used to receive CELO direct payments
     receive() external payable {
-        require(block.chainid == 31337, "LendingPoolWrapper: not on hardhat");
+        // mock gold token can send tokens here on Hardhat
+        if (block.chainid == 31337 && msg.sender == address(goldToken)) {
+            return;
+        }
+        require(
+            msg.sender == address(core),
+            "LendingPoolWrapper: Must be LendingPoolCore to send CELO"
+        );
+
+        // if hardhat, wrap the token so we can send it back to the user
+        if (block.chainid == 31337) {
+            IWrappedTestingGold(goldToken).wrap{value: msg.value}();
+        }
     }
 }

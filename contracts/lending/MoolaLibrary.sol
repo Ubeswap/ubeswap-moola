@@ -27,7 +27,9 @@ library MoolaLibrary {
     function getGoldToken() internal view returns (address) {
         if (block.chainid == 31337) {
             // deployed via create2 in tests
-            return 0x3F735F0E3bdcFaA6e53FD0D9C844a3fcd3CCC81b;
+            return
+                IRegistry(0xd5Fd7f35752300C24cb6C2D4c954A34463070432)
+                    .getAddressForOrDie(GOLD_TOKEN_REGISTRY_ID);
         }
         return
             IRegistry(CELO_REGISTRY).getAddressForOrDie(GOLD_TOKEN_REGISTRY_ID);
