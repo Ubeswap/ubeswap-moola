@@ -4,8 +4,6 @@ import { UbeswapMoolaRouter__factory } from "../../build/types/factories/Ubeswap
 
 const ROUTER_ADDRESS = "0xE3D8bd6Aed4F159bc8000a9cD47CffDb95F96121";
 
-const REGISTRY_ADDRESS = "0x000000000000000000000000000000000000ce10";
-
 const moolaLendingPools = {
   // Addresses from: https://github.com/moolamarket/moola
   [ChainId.ALFAJORES]: {
@@ -17,6 +15,8 @@ const moolaLendingPools = {
     lendingPoolCore: "0xAF106F8D4756490E7069027315F4886cc94A8F73",
   },
 };
+
+export const OPERATOR = "0x489AAc7Cb9A3B233e4a289Ec92284C8d83d49c6f";
 
 export const deployRouter: DeployerFn<{
   UbeswapMoolaRouter: string;
@@ -32,7 +32,7 @@ export const deployRouter: DeployerFn<{
 
   const ubeswapMoolaRouter = await deployCreate2("UbeswapMoolaRouter", {
     factory: UbeswapMoolaRouter__factory,
-    args: [ROUTER_ADDRESS, REGISTRY_ADDRESS],
+    args: [ROUTER_ADDRESS, OPERATOR],
     signer: deployer,
   });
 
