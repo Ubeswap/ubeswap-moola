@@ -4,7 +4,7 @@ import {
   deployerAddress,
   deployFactory,
 } from "@ubeswap/solidity-create2-deployer";
-import { getAddress, parseEther, solidityKeccak256 } from "ethers/lib/utils";
+import { parseEther, solidityKeccak256 } from "ethers/lib/utils";
 import hre from "hardhat";
 import {
   MockLendingPoolCore__factory,
