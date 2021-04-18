@@ -8,6 +8,8 @@ Currently this consists of the `UbeswapMoolaRouter`, which allows users to perfo
 
 See [/deployments](deployments/) for mainnet and Alfajores contract addresses.
 
+Contracts are verified using [Sourcify](https://sourcify.dev).
+
 ## Deployment
 
 `<network>` is either `alfajores` or `mainnet`.
@@ -15,6 +17,10 @@ See [/deployments](deployments/) for mainnet and Alfajores contract addresses.
 ```sh
 yarn hardhat deploy --network alfajores --step router
 ```
+
+### Verification
+
+Run `yarn build` and use the metadata in `build/metadata/UbeswapMoolaRouter/metadata.json` to upload to Sourcify.
 
 ## License
 
