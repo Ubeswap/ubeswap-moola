@@ -4,14 +4,9 @@
   "license": "MIT",
   "description": "🟪🍠 Ubeswap Moola integration",
   "files": [
-    "build/abi/",
-    "build/artifacts/",
-    "build/types/",
+    "build/",
     "contracts/",
-    "deployments/",
-    "package.json",
-    "LICENSE",
-    "README.md"
+    "deployments/"
   ],
   "repository": {
     "type": "git",
@@ -30,7 +25,8 @@
     "celo"
   ],
   "scripts": {
-    "build": "hardhat compile && hardhat metadata:write --name UbeswapMoolaRouter",
+    "build": "hardhat compile && npm run metadata:write",
+    "metadata:write": "hardhat metadata:write --name UbeswapMoolaRouter && prettier --write build/metadata/",
     "clean": "rm -fr build/",
     "console": "hardhat console",
     "deploy:mainnet": "hardhat --network mainnet deploy --step router",
@@ -54,32 +50,32 @@
     "@types/chai": "^4.2.16",
     "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.2",
-    "@types/node": "^14.14.37",
+    "@types/node": "^14.14.41",
     "@ubeswap/core": "^1.0.1",
-    "@ubeswap/hardhat-celo": "^0.7.10",
-    "@ubeswap/sdk": "^2.0.1",
+    "@ubeswap/hardhat-celo": "^0.8.0",
+    "@ubeswap/sdk": "^2.1.0",
     "@ubeswap/solidity-create2-deployer": "^0.6.1",
     "chai": "^4.3.4",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.1.0",
-    "hardhat": "^2.1.2",
+    "hardhat": "^2.2.0",
     "hardhat-abi-exporter": "^2.2.0",
     "hardhat-gas-reporter": "^1.0.4",
-    "hardhat-preprocessor": "^0.1.2",
+    "hardhat-preprocessor": "^0.1.3",
     "hardhat-spdx-license-identifier": "^2.0.3",
     "husky": ">=6.0.0",
     "lint-staged": ">=10.5.4",
     "lodash": "^4.17.21",
     "prettier": "^2.2.1",
-    "prettier-plugin-solidity": "^1.0.0-beta.7",
+    "prettier-plugin-solidity": "^1.0.0-beta.9",
     "solhint": "^3.3.4",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.16",
     "ts-node": "^9.1.1",
     "typechain": "^4.0.3",
-    "typescript": "^4.2.3",
-    "web3": "^1.3.4"
+    "typescript": "^4.2.4",
+    "web3": "^1.3.5"
   },
   "husky": {
     "hooks": {
