@@ -16,7 +16,7 @@ export const MOCK_LPC_KEY = solidityKeccak256(["string"], ["LendingPoolCore"]);
 export const MOCK_GOLD_KEY = solidityKeccak256(["string"], ["GoldToken"]);
 
 export const MOCK_REGISTRY_ADDRESS =
-  "0xd5Fd7f35752300C24cb6C2D4c954A34463070432";
+  "0xCde5a0dC96d0ecEaee6fFfA84a6d9a6343f2c8E2";
 
 before(async () => {
   const { signer: deployer, provider } = await makeCommonEnvironment(hre);

@@ -28,7 +28,7 @@ library MoolaLibrary {
         if (block.chainid == 31337) {
             // deployed via create2 in tests
             return
-                IRegistry(0xd5Fd7f35752300C24cb6C2D4c954A34463070432)
+                IRegistry(0xCde5a0dC96d0ecEaee6fFfA84a6d9a6343f2c8E2)
                     .getAddressForOrDie(GOLD_TOKEN_REGISTRY_ID);
         }
         return
