@@ -30,7 +30,7 @@
     "celo"
   ],
   "scripts": {
-    "build": "hardhat compile",
+    "build": "hardhat compile && hardhat metadata:write --name UbeswapMoolaRouter",
     "clean": "rm -fr build/",
     "console": "hardhat console",
     "deploy:mainnet": "hardhat --network mainnet deploy --step router",
