@@ -20,7 +20,7 @@ contract MockGold is ERC20("Celo", "CELO") {
         Address.sendValue(recipient, _amount);
     }
 
-    function unwrapTestingOnly(uint256 _amount) external {
+    function unwrap(uint256 _amount) external {
         unwrapTo(payable(msg.sender), _amount);
     }
 
