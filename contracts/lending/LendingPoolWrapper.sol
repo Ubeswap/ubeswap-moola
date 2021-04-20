@@ -8,17 +8,12 @@ import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ILendingPoolWrapper.sol";
 import "../interfaces/IMoola.sol";
 import "./MoolaLibrary.sol";
-
-interface IWrappedTestingGold {
-    function unwrapTestingOnly(uint256 _amount) external;
-
-    function wrap() external payable;
-}
+import "../util/UsesGold.sol";
 
 /**
  * @notice Wrapper to deposit and withdraw into a lending pool.
  */
-contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
+contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard, UsesGold {
     using SafeERC20 for IERC20;
 
     /// @notice Lending pool
@@ -29,9 +24,6 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
 
     /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
     uint16 public immutable moolaReferralCode;
-
-    /// @notice Celo Gold token
-    address public immutable goldToken = MoolaLibrary.getGoldToken();
 
     constructor(uint16 moolaReferralCode_) {
         moolaReferralCode = moolaReferralCode_;
@@ -91,10 +83,7 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
                 MoolaLibrary.getMoolaReserveToken(_reserve) ==
                 MoolaLibrary.CELO_MAGIC_ADDRESS
             ) {
-                // hardhat -- doesn't have celo erc20 so we need to handle it differently
-                if (block.chainid == 31337) {
-                    IWrappedTestingGold(goldToken).unwrapTestingOnly(_amount);
-                }
+                ensureGoldUnwrapped(_amount);
                 pool.deposit{value: _amount}(
                     MoolaLibrary.CELO_MAGIC_ADDRESS,
                     _amount,
@@ -117,19 +106,11 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     }
 
     /// @notice This is used to receive CELO direct payments
-    receive() external payable {
-        // mock gold token can send tokens here on Hardhat
-        if (block.chainid == 31337 && msg.sender == address(goldToken)) {
-            return;
-        }
+    receive() external payable allowUnwrap {
         require(
             msg.sender == address(core),
             "LendingPoolWrapper: Must be LendingPoolCore to send CELO"
         );
-
-        // if hardhat, wrap the token so we can send it back to the user
-        if (block.chainid == 31337) {
-            IWrappedTestingGold(goldToken).wrap{value: msg.value}();
-        }
+        ensureGoldWrapped();
     }
 }

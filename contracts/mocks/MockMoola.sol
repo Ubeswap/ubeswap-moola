@@ -62,7 +62,7 @@ contract MockLendingPoolCore is ILendingPoolCore {
         );
         IERC20 underlying = MockAToken(msg.sender).underlying();
         if (underlying == celo) {
-            celo.unwrapTestingOnly(_amount);
+            celo.unwrap(_amount);
             Address.sendValue(payable(_user), _amount);
         } else {
             underlying.transfer(_user, _amount);

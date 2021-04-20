@@ -60,38 +60,6 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
         }
     }
 
-    /// @dev Ensures that the ERC20 token balances of this contract before and after
-    /// the swap are equal
-    /// TODO(igm): remove this once we get an audit
-    /// This should NEVER get triggered, but it's better to be safe than sorry
-    modifier balanceUnchanged(address[] calldata _path, address _to) {
-        // Populate initial balances for comparison later
-        uint256[] memory _initialBalances = new uint256[](_path.length);
-        for (uint256 i = 0; i < _path.length; i++) {
-            _initialBalances[i] = IERC20(_path[i]).balanceOf(address(this));
-        }
-        _;
-        for (uint256 i = 0; i < _path.length - 1; i++) {
-            uint256 newBalance = IERC20(_path[i]).balanceOf(address(this));
-            require(
-                // if triangular arb, ignore
-                _path[i] == _path[0] ||
-                    _path[i] == _path[_path.length - 1] ||
-                    // ensure tokens balances haven't changed
-                    newBalance == _initialBalances[i],
-                "UbeswapMoolaRouter: tokens left over after swap"
-            );
-        }
-        // sends the final tokens to `_to` address
-        address lastAddress = _path[_path.length - 1];
-        IERC20(lastAddress).safeTransfer(
-            _to,
-            // subtract the initial balance from this token
-            IERC20(lastAddress).balanceOf(address(this)) -
-                _initialBalances[_initialBalances.length - 1]
-        );
-    }
-
     /// @dev Handles the swap after the plan is executed
     function _swapConvertOut(
         UbeswapMoolaRouterLibrary.SwapPlan memory _plan,
@@ -112,6 +80,10 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
                 Reason.CONVERT_OUT
             );
         }
+        IERC20(_path[_path.length - 1]).safeTransfer(
+            _to,
+            amounts[amounts.length - 1]
+        );
         emit TokensSwapped(
             msg.sender,
             _path,
@@ -127,12 +99,7 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
         address[] calldata path,
         address to,
         uint256 deadline
-    )
-        external
-        override
-        balanceUnchanged(path, to)
-        returns (uint256[] memory amounts)
-    {
+    ) public virtual override returns (uint256[] memory amounts) {
         UbeswapMoolaRouterLibrary.SwapPlan memory plan =
             _initSwap(path, amountIn, 0);
         if (plan.nextPath.length > 0) {
@@ -153,12 +120,7 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
         address[] calldata path,
         address to,
         uint256 deadline
-    )
-        external
-        override
-        balanceUnchanged(path, to)
-        returns (uint256[] memory amounts)
-    {
+    ) public virtual override returns (uint256[] memory amounts) {
         UbeswapMoolaRouterLibrary.SwapPlan memory plan =
             _initSwap(path, 0, amountOut);
         if (plan.nextPath.length > 0) {
@@ -171,6 +133,44 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
             );
         }
         amounts = _swapConvertOut(plan, amounts, path, to);
+    }
+
+    /// @notice Swaps exact tokens in supporting tokens that might take a fee on transfer
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) public virtual override {
+        UbeswapMoolaRouterLibrary.SwapPlan memory plan =
+            _initSwap(path, amountIn, 0);
+        uint256 balanceDiff = 0;
+        if (plan.nextPath.length > 0) {
+            uint256 balanceBefore =
+                IERC20(path[path.length - 1]).balanceOf(address(this));
+            router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn,
+                amountOutMin,
+                plan.nextPath,
+                address(this),
+                deadline
+            );
+            uint256 balanceAfter =
+                IERC20(path[path.length - 1]).balanceOf(address(this));
+            balanceDiff = balanceAfter - balanceBefore;
+        }
+
+        if (plan.reserveOut != address(0)) {
+            _convert(
+                plan.reserveOut,
+                balanceDiff,
+                plan.depositOut,
+                Reason.CONVERT_OUT
+            );
+        }
+        IERC20(path[path.length - 1]).safeTransfer(to, balanceDiff);
+        emit TokensSwapped(msg.sender, path, to, amountIn, balanceDiff);
     }
 
     function getAmountsOut(uint256 _amountIn, address[] calldata _path)
