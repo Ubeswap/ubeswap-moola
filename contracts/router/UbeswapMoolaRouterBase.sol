@@ -35,7 +35,7 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
         uint256 _inAmount,
         uint256 _outAmount
     ) internal returns (UbeswapMoolaRouterLibrary.SwapPlan memory _plan) {
-        _plan = UbeswapMoolaRouterLibrary.computeSwap(core, _path);
+        _plan = UbeswapMoolaRouterLibrary.computeSwap(dataProvider, _path);
 
         // if we have a path, approve the router to be able to trade
         if (_plan.nextPath.length > 0) {
@@ -181,7 +181,7 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
     {
         return
             UbeswapMoolaRouterLibrary.getAmountsOut(
-                core,
+                dataProvider,
                 router,
                 _amountIn,
                 _path
@@ -196,7 +196,7 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
     {
         return
             UbeswapMoolaRouterLibrary.getAmountsIn(
-                core,
+                dataProvider,
                 router,
                 _amountOut,
                 _path
@@ -208,7 +208,7 @@ abstract contract UbeswapMoolaRouterBase is LendingPoolWrapper, IUbeswapRouter {
         view
         returns (UbeswapMoolaRouterLibrary.SwapPlan memory)
     {
-        return UbeswapMoolaRouterLibrary.computeSwap(core, _path);
+        return UbeswapMoolaRouterLibrary.computeSwap(dataProvider, _path);
     }
 
     function computeAmountsFromRouterAmounts(

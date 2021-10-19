@@ -19,8 +19,8 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard, UsesGold {
     /// @notice Lending pool
     ILendingPool public pool;
 
-    /// @notice Lending core
-    ILendingPoolCore public core;
+    /// @notice Moola DataProvider
+    IDataProvider public dataProvider;
 
     /// @notice Referral code to allow tracking Moola volume originating from Ubeswap.
     uint16 public immutable moolaReferralCode;
@@ -30,37 +30,35 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard, UsesGold {
     }
 
     /// @notice initializes the pool (only used for deployment)
-    function initialize(address _pool, address _core) external {
+    function initialize(address _pool, address _dataProvider) external {
         require(
             address(pool) == address(0),
             "LendingPoolWrapper: pool already set"
         );
         require(
-            address(core) == address(0),
-            "LendingPoolWrapper: core already set"
+            address(dataProvider) == address(0),
+            "LendingPoolWrapper: dataProvider already set"
         );
         pool = ILendingPool(_pool);
-        core = ILendingPoolCore(_core);
+        dataProvider = IDataProvider(_dataProvider);
     }
 
     function deposit(address _reserve, uint256 _amount) external override {
         IERC20(_reserve).safeTransferFrom(msg.sender, address(this), _amount);
         _convert(_reserve, _amount, true, Reason.DIRECT);
-        IERC20(
-            core.getReserveATokenAddress(
-                MoolaLibrary.getMoolaReserveToken(_reserve)
-            )
-        )
-            .safeTransfer(msg.sender, _amount);
+        (address aTokenAddress, , ) =
+            dataProvider.getReserveTokensAddresses(_reserve);
+        IERC20(aTokenAddress).safeTransfer(msg.sender, _amount);
     }
 
     function withdraw(address _reserve, uint256 _amount) external override {
-        IERC20(
-            core.getReserveATokenAddress(
-                MoolaLibrary.getMoolaReserveToken(_reserve)
-            )
-        )
-            .safeTransferFrom(msg.sender, address(this), _amount);
+        (address aTokenAddress, , ) =
+            dataProvider.getReserveTokensAddresses(_reserve);
+        IERC20(aTokenAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
         _convert(_reserve, _amount, false, Reason.DIRECT);
         IERC20(_reserve).safeTransfer(msg.sender, _amount);
     }
@@ -79,38 +77,12 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard, UsesGold {
         Reason _reason
     ) internal nonReentrant {
         if (_deposit) {
-            if (
-                MoolaLibrary.getMoolaReserveToken(_reserve) ==
-                MoolaLibrary.CELO_MAGIC_ADDRESS
-            ) {
-                ensureGoldUnwrapped(_amount);
-                pool.deposit{value: _amount}(
-                    MoolaLibrary.CELO_MAGIC_ADDRESS,
-                    _amount,
-                    moolaReferralCode
-                );
-            } else {
-                IERC20(_reserve).safeApprove(address(core), _amount);
-                pool.deposit(_reserve, _amount, moolaReferralCode);
-            }
+            IERC20(_reserve).safeApprove(address(pool), _amount);
+            pool.deposit(_reserve, _amount, address(this), moolaReferralCode);
             emit Deposited(_reserve, msg.sender, _reason, _amount);
         } else {
-            IAToken(
-                core.getReserveATokenAddress(
-                    MoolaLibrary.getMoolaReserveToken(_reserve)
-                )
-            )
-                .redeem(_amount);
+            pool.withdraw(_reserve, _amount, address(this));
             emit Withdrawn(_reserve, msg.sender, _reason, _amount);
         }
-    }
-
-    /// @notice This is used to receive CELO direct payments
-    receive() external payable allowUnwrap {
-        require(
-            msg.sender == address(core),
-            "LendingPoolWrapper: Must be LendingPoolCore to send CELO"
-        );
-        ensureGoldWrapped();
     }
 }
