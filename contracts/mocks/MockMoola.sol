@@ -22,14 +22,14 @@ contract MockAToken is ERC20 {
         underlying = _underlying;
     }
 
-    function mint(uint256 _amount) external {
+    function mint(address _user, uint256 _amount) external {
         require(msg.sender == lendingPool, "MockMoola: minter not lendingPool");
-        _mint(msg.sender, _amount);
+        _mint(_user, _amount);
     }
 
-    function burn(uint256 _amount) external {
-        require(msg.sender == lendingPool, "MockMoola: minter not lendingPool");
-        _burn(msg.sender, _amount);
+    function burn(address _user, uint256 _amount) external {
+        require(msg.sender == lendingPool, "MockMoola: burner not lendingPool");
+        _burn(_user, _amount);
     }
 }
 
@@ -81,8 +81,7 @@ contract MockLendingPool is ILendingPool {
         uint16
     ) external override {
         IERC20(_reserve).transferFrom(msg.sender, address(this), _amount);
-        tokens[_reserve].mint(_amount);
-        tokens[_reserve].transfer(_onBehalfOf, _amount);
+        tokens[_reserve].mint(msg.sender, _amount);
     }
 
     function withdraw(
@@ -90,8 +89,7 @@ contract MockLendingPool is ILendingPool {
         uint256 _amount,
         address _to
     ) external override {
-        tokens[_reserve].transferFrom(msg.sender, address(this), _amount);
-        tokens[_reserve].burn(_amount);
+        tokens[_reserve].burn(msg.sender, _amount);
         IERC20(_reserve).transfer(_to, _amount);
     }
 }

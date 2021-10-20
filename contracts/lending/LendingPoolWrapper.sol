@@ -79,9 +79,6 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
             pool.deposit(_reserve, _amount, address(this), moolaReferralCode);
             emit Deposited(_reserve, msg.sender, _reason, _amount);
         } else {
-            (address aTokenAddress, , ) =
-                dataProvider.getReserveTokensAddresses(_reserve);
-            IERC20(aTokenAddress).safeApprove(address(pool), _amount);
             pool.withdraw(_reserve, _amount, address(this));
             emit Withdrawn(_reserve, msg.sender, _reason, _amount);
         }
