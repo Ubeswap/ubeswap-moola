@@ -8,19 +8,18 @@ import IUbeswapRouterABI from "../build/abi/IUbeswapRouter.json";
 import {
   MockAToken,
   MockAToken__factory,
+  MockDataProvider__factory,
   MockERC20,
   MockERC20__factory,
   MockGold,
   MockGold__factory,
   MockLendingPool,
-  MockLendingPoolCore,
-  MockLendingPoolCore__factory,
   MockLendingPool__factory,
   MockRegistry__factory,
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { MOCK_LPC_KEY, MOCK_REGISTRY_ADDRESS } from "./setup.test";
+import { MOCK_LP_KEY, MOCK_REGISTRY_ADDRESS } from "./setup.test";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 
@@ -42,7 +41,6 @@ describe("UbeswapMoolaRouter", () => {
 
   let router: MockContract;
   let pool: MockLendingPool;
-  let core: MockLendingPoolCore;
   let cUSD: MockERC20;
   let CELO: MockGold;
   let mcUSD: MockAToken;
@@ -69,27 +67,29 @@ describe("UbeswapMoolaRouter", () => {
       MOCK_REGISTRY_ADDRESS,
       wallet
     );
-    core = MockLendingPoolCore__factory.connect(
-      await registry.getAddressForOrDie(MOCK_LPC_KEY),
+    pool = MockLendingPool__factory.connect(
+      await registry.getAddressForOrDie(MOCK_LP_KEY),
       wallet
     );
-    pool = await new MockLendingPool__factory(wallet).deploy(core.address);
+    const dataProvider = await new MockDataProvider__factory(wallet).deploy(
+      pool.address
+    );
 
-    cUSD = MockERC20__factory.connect(await core.cusd(), wallet);
-    CELO = MockGold__factory.connect(await core.celo(), wallet);
+    cUSD = MockERC20__factory.connect(await pool.cusd(), wallet);
+    CELO = MockGold__factory.connect(await pool.celo(), wallet);
 
     // send gold
     await CELO.connect(other0).wrap({ value: parseEther("100") });
     await CELO.connect(other0).transfer(wallet.address, parseEther("100"));
 
-    mcUSD = MockAToken__factory.connect(await core.mcusd(), wallet);
-    mCELO = MockAToken__factory.connect(await core.mcelo(), wallet);
+    mcUSD = MockAToken__factory.connect(await pool.mcusd(), wallet);
+    mCELO = MockAToken__factory.connect(await pool.mcelo(), wallet);
 
     moolaRouter = await new UbeswapMoolaRouter__factory(wallet).deploy(
       router.address,
       router.address // this doesn't matter for our testing
     );
-    await moolaRouter.initialize(pool.address, core.address);
+    await moolaRouter.initialize(pool.address, dataProvider.address);
 
     CUSD_CELO_PATH = [cUSD.address, ...RANDO_PATH, getAddress(CELO.address)];
     CUSD_CELO_AMOUNTS = [1000000, ...RANDO_AMOUNTS, 900000];

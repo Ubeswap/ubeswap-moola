@@ -15,9 +15,9 @@ import {
 import {
   IERC20,
   MockAToken__factory,
+  MockDataProvider__factory,
   MockERC20__factory,
   MockGold__factory,
-  MockLendingPoolCore__factory,
   MockLendingPool__factory,
   MockRegistry__factory,
 } from "../build/types";
@@ -25,7 +25,7 @@ import {
   UbeswapMoolaRouter,
   UbeswapMoolaRouter__factory,
 } from "../build/types/";
-import { MOCK_LPC_KEY, MOCK_REGISTRY_ADDRESS } from "./setup.test";
+import { MOCK_LP_KEY, MOCK_REGISTRY_ADDRESS } from "./setup.test";
 
 interface ISwapArgs {
   readonly swapperRouter: UbeswapMoolaRouter;
@@ -215,23 +215,23 @@ describe("UbeswapMoolaRouter swapping", () => {
       MOCK_REGISTRY_ADDRESS,
       wallet
     );
-    const core = MockLendingPoolCore__factory.connect(
-      await registry.getAddressForOrDie(MOCK_LPC_KEY),
+    const pool = MockLendingPool__factory.connect(
+      await registry.getAddressForOrDie(MOCK_LP_KEY),
       wallet
     );
-    const pool = await new MockLendingPool__factory(wallet).deploy(
-      core.address
+    const dataProvider = await new MockDataProvider__factory(wallet).deploy(
+      pool.address
     );
 
-    const cUSD = MockERC20__factory.connect(await core.cusd(), wallet);
-    const CELO = MockGold__factory.connect(await core.celo(), wallet);
+    const cUSD = MockERC20__factory.connect(await pool.cusd(), wallet);
+    const CELO = MockGold__factory.connect(await pool.celo(), wallet);
 
     // send gold
     await CELO.connect(other0).wrap({ value: parseEther("100") });
     await CELO.connect(other0).transfer(wallet.address, parseEther("100"));
 
-    const mcUSD = MockAToken__factory.connect(await core.mcusd(), wallet);
-    const mCELO = MockAToken__factory.connect(await core.mcelo(), wallet);
+    const mcUSD = MockAToken__factory.connect(await pool.mcusd(), wallet);
+    const mCELO = MockAToken__factory.connect(await pool.mcelo(), wallet);
 
     const rand1 = await new MockERC20__factory(wallet).deploy(
       "Randy One",
@@ -250,7 +250,7 @@ describe("UbeswapMoolaRouter swapping", () => {
       router.address,
       router.address // this doesn't matter for our testing
     );
-    await moolaRouter.initialize(pool.address, core.address);
+    await moolaRouter.initialize(pool.address, dataProvider.address);
 
     // setup swap tester
     const allAtokens = [

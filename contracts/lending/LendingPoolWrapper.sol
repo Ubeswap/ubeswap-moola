@@ -7,13 +7,11 @@ import "openzeppelin-solidity/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/ILendingPoolWrapper.sol";
 import "../interfaces/IMoola.sol";
-import "./MoolaLibrary.sol";
-import "../util/UsesGold.sol";
 
 /**
  * @notice Wrapper to deposit and withdraw into a lending pool.
  */
-contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard, UsesGold {
+contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Lending pool
@@ -81,6 +79,9 @@ contract LendingPoolWrapper is ILendingPoolWrapper, ReentrancyGuard, UsesGold {
             pool.deposit(_reserve, _amount, address(this), moolaReferralCode);
             emit Deposited(_reserve, msg.sender, _reason, _amount);
         } else {
+            (address aTokenAddress, , ) =
+                dataProvider.getReserveTokensAddresses(_reserve);
+            IERC20(aTokenAddress).safeApprove(address(pool), _amount);
             pool.withdraw(_reserve, _amount, address(this));
             emit Withdrawn(_reserve, msg.sender, _reason, _amount);
         }

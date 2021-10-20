@@ -4,7 +4,6 @@ pragma solidity ^0.8.3;
 
 import "../interfaces/IUbeswapRouter.sol";
 import "../interfaces/IMoola.sol";
-import "../lending/MoolaLibrary.sol";
 
 /// @notice Library for computing various router functions
 library UbeswapMoolaRouterLibrary {
@@ -28,13 +27,9 @@ library UbeswapMoolaRouterLibrary {
 
         // cAsset -> mcAsset (deposit)
         (address aTokenAddress0, , ) =
-            _dataProvider.getReserveTokensAddresses(
-                MoolaLibrary.getMoolaReserveToken(_path[0])
-            );
+            _dataProvider.getReserveTokensAddresses(_path[0]);
         (address aTokenAddress1, , ) =
-            _dataProvider.getReserveTokensAddresses(
-                MoolaLibrary.getMoolaReserveToken(_path[1])
-            );
+            _dataProvider.getReserveTokensAddresses(_path[1]);
         if (aTokenAddress0 == _path[1]) {
             _plan.reserveIn = _path[0];
             _plan.depositIn = true;
@@ -55,11 +50,11 @@ library UbeswapMoolaRouterLibrary {
         ) {
             (address aTokenAddressLast1, , ) =
                 _dataProvider.getReserveTokensAddresses(
-                    MoolaLibrary.getMoolaReserveToken(_path[_path.length - 2])
+                    _path[_path.length - 2]
                 );
             (address aTokenAddressLast0, , ) =
                 _dataProvider.getReserveTokensAddresses(
-                    MoolaLibrary.getMoolaReserveToken(_path[_path.length - 1])
+                    _path[_path.length - 1]
                 );
             // cAsset -> mcAsset (deposit)
             if (aTokenAddressLast1 == _path[_path.length - 1]) {

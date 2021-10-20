@@ -5,6 +5,7 @@ pragma solidity ^0.8.3;
 import "../lending/LendingPoolWrapper.sol";
 import "../interfaces/IUbeswapRouter.sol";
 import "./UbeswapMoolaRouterLibrary.sol";
+import "hardhat/console.sol";
 
 /**
  * Router for allowing conversion to/from Moola before swapping.

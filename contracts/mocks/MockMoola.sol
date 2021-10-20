@@ -50,12 +50,12 @@ contract MockDataProvider is IDataProvider {
             address variableDebtTokenAddress
         )
     {
-        return (lendingPool.tokens(asset), address(0), address(0));
+        return (address(lendingPool.tokens(asset)), address(0), address(0));
     }
 }
 
 contract MockLendingPool is ILendingPool {
-    MockERC20 public celo;
+    MockGold public celo;
     MockERC20 public cusd;
     MockAToken public mcelo;
     MockAToken public mcusd;
@@ -65,7 +65,7 @@ contract MockLendingPool is ILendingPool {
     constructor() {}
 
     function initialize() external {
-        celo = new MockERC20("Celo Native", "CELO");
+        celo = new MockGold();
         cusd = new MockERC20("Celo Dollar", "cUSD");
         mcelo = new MockAToken(address(this), celo, "Moola Celo", "mCELO");
         mcusd = new MockAToken(address(this), cusd, "Moola cUSD", "mcUSD");
