@@ -7,11 +7,11 @@ import {
 import { parseEther, solidityKeccak256 } from "ethers/lib/utils";
 import hre from "hardhat";
 import {
-  MockLendingPoolCore__factory,
+  MockLendingPool__factory,
   MockRegistry__factory,
 } from "../build/types";
 
-export const MOCK_LPC_KEY = solidityKeccak256(["string"], ["LendingPoolCore"]);
+export const MOCK_LP_KEY = solidityKeccak256(["string"], ["LendingPool"]);
 
 export const MOCK_GOLD_KEY = solidityKeccak256(["string"], ["GoldToken"]);
 
@@ -36,23 +36,23 @@ before(async () => {
     args: [],
   });
 
-  const lpc = await deployCreate2({
+  const lp = await deployCreate2({
     salt: "rando",
     signer: wallets[0]!,
-    factory: MockLendingPoolCore__factory,
+    factory: MockLendingPool__factory,
     args: [],
   });
 
-  await lpc.contract.initialize();
+  await lp.contract.initialize();
 
   console.log("Mock lookup: " + mockRegistry.address);
-  console.log("Mock lending pool core: " + lpc.address);
-  console.log("Mock Gold: " + (await lpc.contract.celo()));
+  console.log("Mock lending pool core: " + lp.address);
+  console.log("Mock Gold: " + (await lp.contract.celo()));
 
-  await mockRegistry.contract.setAddress(MOCK_LPC_KEY, lpc.address);
+  await mockRegistry.contract.setAddress(MOCK_LP_KEY, lp.address);
 
   await mockRegistry.contract.setAddress(
     MOCK_GOLD_KEY,
-    await lpc.contract.celo()
+    await lp.contract.celo()
   );
 });

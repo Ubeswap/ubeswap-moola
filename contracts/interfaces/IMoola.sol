@@ -4,21 +4,28 @@ pragma solidity ^0.8.3;
 
 // Interfaces in this file come from Moola.
 
-interface IAToken {
-    function redeem(uint256 _amount) external;
-}
-
-interface ILendingPoolCore {
-    function getReserveATokenAddress(address _reserve)
+interface IDataProvider {
+    function getReserveTokensAddresses(address asset)
         external
         view
-        returns (address);
+        returns (
+            address aTokenAddress,
+            address stableDebtTokenAddress,
+            address variableDebtTokenAddress
+        );
 }
 
 interface ILendingPool {
     function deposit(
         address _reserve,
         uint256 _amount,
+        address _onBehalfOf,
         uint16 _referralCode
-    ) external payable;
+    ) external;
+
+    function withdraw(
+        address _reserve,
+        uint256 _amount,
+        address _to
+    ) external;
 }

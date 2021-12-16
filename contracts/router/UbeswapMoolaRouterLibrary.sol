@@ -4,7 +4,6 @@ pragma solidity ^0.8.3;
 
 import "../interfaces/IUbeswapRouter.sol";
 import "../interfaces/IMoola.sol";
-import "../lending/MoolaLibrary.sol";
 
 /// @notice Library for computing various router functions
 library UbeswapMoolaRouterLibrary {
@@ -18,7 +17,7 @@ library UbeswapMoolaRouterLibrary {
     }
 
     /// @notice Computes the swap that will take place based on the path
-    function computeSwap(ILendingPoolCore _core, address[] calldata _path)
+    function computeSwap(IDataProvider _dataProvider, address[] calldata _path)
         internal
         view
         returns (SwapPlan memory _plan)
@@ -27,22 +26,17 @@ library UbeswapMoolaRouterLibrary {
         uint256 endIndex = _path.length;
 
         // cAsset -> mcAsset (deposit)
-        if (
-            _core.getReserveATokenAddress(
-                MoolaLibrary.getMoolaReserveToken(_path[0])
-            ) == _path[1]
-        ) {
+        (address aTokenAddress0, , ) =
+            _dataProvider.getReserveTokensAddresses(_path[0]);
+        (address aTokenAddress1, , ) =
+            _dataProvider.getReserveTokensAddresses(_path[1]);
+        if (aTokenAddress0 == _path[1]) {
             _plan.reserveIn = _path[0];
             _plan.depositIn = true;
             startIndex += 1;
         }
         // mcAsset -> cAsset (withdraw)
-        else if (
-            _path[0] ==
-            _core.getReserveATokenAddress(
-                MoolaLibrary.getMoolaReserveToken(_path[1])
-            )
-        ) {
+        else if (_path[0] == aTokenAddress1) {
             _plan.reserveIn = _path[1];
             _plan.depositIn = false;
             startIndex += 1;
@@ -54,23 +48,22 @@ library UbeswapMoolaRouterLibrary {
             // if we already did a conversion and path length is 3, skip.
             !(_path.length == 3 && startIndex > 0)
         ) {
+            (address aTokenAddressLast1, , ) =
+                _dataProvider.getReserveTokensAddresses(
+                    _path[_path.length - 2]
+                );
+            (address aTokenAddressLast0, , ) =
+                _dataProvider.getReserveTokensAddresses(
+                    _path[_path.length - 1]
+                );
             // cAsset -> mcAsset (deposit)
-            if (
-                _core.getReserveATokenAddress(
-                    MoolaLibrary.getMoolaReserveToken(_path[_path.length - 2])
-                ) == _path[_path.length - 1]
-            ) {
+            if (aTokenAddressLast1 == _path[_path.length - 1]) {
                 _plan.reserveOut = _path[_path.length - 2];
                 _plan.depositOut = true;
                 endIndex -= 1;
             }
             // mcAsset -> cAsset (withdraw)
-            else if (
-                _path[_path.length - 2] ==
-                _core.getReserveATokenAddress(
-                    MoolaLibrary.getMoolaReserveToken(_path[_path.length - 1])
-                )
-            ) {
+            else if (_path[_path.length - 2] == aTokenAddressLast0) {
                 _plan.reserveOut = _path[_path.length - 1];
                 endIndex -= 1;
                 // not needed
@@ -104,12 +97,12 @@ library UbeswapMoolaRouterLibrary {
     }
 
     function getAmountsOut(
-        ILendingPoolCore core,
+        IDataProvider dataProvider,
         IUbeswapRouter router,
         uint256 amountIn,
         address[] calldata path
     ) internal view returns (uint256[] memory amounts) {
-        SwapPlan memory plan = computeSwap(core, path);
+        SwapPlan memory plan = computeSwap(dataProvider, path);
         amounts = computeAmountsFromRouterAmounts(
             router.getAmountsOut(amountIn, plan.nextPath),
             plan.reserveIn,
@@ -118,12 +111,12 @@ library UbeswapMoolaRouterLibrary {
     }
 
     function getAmountsIn(
-        ILendingPoolCore core,
+        IDataProvider dataProvider,
         IUbeswapRouter router,
         uint256 amountOut,
         address[] calldata path
     ) internal view returns (uint256[] memory amounts) {
-        SwapPlan memory plan = computeSwap(core, path);
+        SwapPlan memory plan = computeSwap(dataProvider, path);
         amounts = computeAmountsFromRouterAmounts(
             router.getAmountsIn(amountOut, plan.nextPath),
             plan.reserveIn,
