@@ -7,12 +7,12 @@ const ROUTER_ADDRESS = "0xE3D8bd6Aed4F159bc8000a9cD47CffDb95F96121";
 const moolaLendingPools = {
   // Addresses from: https://github.com/moolamarket/moola
   [ChainId.ALFAJORES]: {
-    lendingPool: "0x0886f74eEEc443fBb6907fB5528B57C28E813129",
-    lendingPoolCore: "0x090D652d1Bb0FEFbEe2531e9BBbb3604bE71f5de",
+    lendingPool: "0x58ad305f1eCe49ca55ADE0D5cCC90114C3902E88",
+    dataProvider: "0x31ccB9dC068058672D96E92BAf96B1607855822E",
   },
   [ChainId.MAINNET]: {
-    lendingPool: "0xc1548F5AA1D76CDcAB7385FA6B5cEA70f941e535",
-    lendingPoolCore: "0xAF106F8D4756490E7069027315F4886cc94A8F73",
+    lendingPool: "0x970b12522CA9b4054807a2c5B736149a5BE6f670",
+    dataProvider: "0x43d067ed784D9DD2ffEda73775e2CC4c560103A1",
   },
 };
 
@@ -41,7 +41,7 @@ export const deployRouter: DeployerFn<{
     UbeswapMoolaRouter__factory.connect(
       ubeswapMoolaRouter.address,
       deployer
-    ).initialize(pools.lendingPool, pools.lendingPoolCore)
+    ).initialize(pools.lendingPool, pools.dataProvider)
   );
 
   return {
