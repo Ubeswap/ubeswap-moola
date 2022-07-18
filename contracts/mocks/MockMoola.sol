@@ -81,7 +81,7 @@ contract MockLendingPool is ILendingPool {
         uint16
     ) external override {
         IERC20(_reserve).transferFrom(msg.sender, address(this), _amount);
-        tokens[_reserve].mint(msg.sender, _amount);
+        tokens[_reserve].mint(_onBehalfOf, _amount);
     }
 
     function withdraw(

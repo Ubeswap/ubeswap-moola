@@ -2,7 +2,8 @@ import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-solhint";
 import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
-import "@ubeswap/hardhat-celo";
+import "hardhat-deploy";
+// import "@ubeswap/hardhat-celo";
 import { fornoURLs, ICeloNetwork } from "@ubeswap/hardhat-celo";
 import "dotenv/config";
 import { parseEther } from "ethers/lib/utils";
@@ -14,10 +15,10 @@ import { HardhatUserConfig, task } from "hardhat/config";
 import { ActionType, HDAccountsUserConfig } from "hardhat/types";
 import "solidity-coverage";
 
-task("deploy", "Deploys a step", (async (...args) =>
-  (await import("./tasks/deploy")).deploy(...args)) as ActionType<{
-  step: string;
-}>).addParam("step", "The step to deploy");
+// task("deploy", "Deploys a step", (async (...args) =>
+//   (await import("./tasks/deploy")).deploy(...args)) as ActionType<{
+//   step: string;
+// }>).addParam("step", "The step to deploy");
 
 const accounts: HDAccountsUserConfig = {
   mnemonic:
