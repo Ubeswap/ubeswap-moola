@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "build": "hardhat compile && npm run metadata:write",
-    "metadata:write": "hardhat metadata:write --name UbeswapMoolaRouter && prettier --write build/metadata/",
+    "metadata:write": "hardhat metadata:write --name UbeswapMoolaRouter && hardhat metadata:write --name UbeswapReferrerRouter && prettier --write build/metadata/",
     "clean": "rm -fr build/",
     "console": "hardhat console",
     "deploy:mainnet": "hardhat --network mainnet deploy --step router",
