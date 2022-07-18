@@ -8,9 +8,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IUbeswapRouter.sol";
 
 /**
- * Router for allowing conversion to/from Moola before swapping.
+ * Router for incentivize referrers to run frontends.
  */
-contract UbeswapRefferrerRouter {
+contract UbeswapReferrerRouter {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
